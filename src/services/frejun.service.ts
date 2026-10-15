@@ -104,8 +104,38 @@ export class FreJunService implements ITelephonyService {
     // Keys created under product.frejun.com/settings -> Developer have the format: <prefix>.<secret>
     if (this.config.frejun.apiKey.includes(".")) {
       try {
+        const userEmail = dto.userEmail || (dto.metadata?.creatorEmail as string) || "info@maxpinetechnology.com";
+        const creatorNumber = dto.creatorNumber || (dto.metadata?.creatorPhone as string);
+
+        // If a specific creator phone number is specified, synchronize it with the FreJun Agent profile
+        if (creatorNumber) {
+          try {
+            await axios.patch(
+              `https://api.frejun.com/api/v1/integrations/user/?email=${encodeURIComponent(userEmail)}`,
+              { number: creatorNumber },
+              {
+                headers: {
+                  "Authorization": `Api-Key ${this.config.frejun.apiKey}`,
+                  "Content-Type": "application/json",
+                },
+                timeout: 5000,
+              }
+            );
+            this.logger.info("Synchronized creator number on FreJun agent profile", {
+              email: userEmail,
+              creatorNumber,
+            });
+          } catch (patchErr: unknown) {
+            this.logger.warn("Could not patch creator number on FreJun, proceeding with initiate", {
+              error: patchErr instanceof Error ? patchErr.message : patchErr,
+            });
+          }
+        }
+
         this.logger.info("Calling FreJun CRM Dialer API (https://api.frejun.com/api/v1/integrations/create-call/)", {
           candidate_number: toNumber,
+          user_email: userEmail,
+          creator_number: creatorNumber,
         });
 
         const response = await axios.post<{
@@ -122,6 +152,7 @@ export class FreJunService implements ITelephonyService {
           "https://api.frejun.com/api/v1/integrations/create-call/",
           {
             candidate_number: toNumber,
+            user_email: userEmail,
           },
           {
             headers: {
@@ -146,7 +177,7 @@ export class FreJunService implements ITelephonyService {
           return {
             callId,
             provider: this.providerName,
-            fromNumber,
+            fromNumber: creatorNumber || fromNumber,
             toNumber,
             state: "initiated",
             record,
@@ -154,6 +185,10 @@ export class FreJunService implements ITelephonyService {
             metadata: {
               source: "product.frejun.com",
               platform: "frejun_crm_dialer",
+              creatorId: dto.creatorId,
+              candidateId: dto.candidateId,
+              creatorEmail: userEmail,
+              creatorNumber: creatorNumber,
               eventId: crmData?.event_id,
               info: crmData?.info,
               ...(dto.metadata || {}),

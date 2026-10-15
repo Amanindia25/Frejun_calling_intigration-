@@ -18,12 +18,17 @@ import { createCallRoutes } from "./routes/call.routes";
 import { createWebhookRoutes } from "./routes/webhook.routes";
 import { Logger } from "./utils/logger";
 
+import { ICrmRepository, InMemoryCrmRepository } from "./services/crm.repository";
+import { CrmController } from "./controllers/crm.controller";
+import { createCrmRoutes } from "./routes/crm.routes";
+
 export class App {
   public app: Application;
   public config: IAppConfig;
   public telephonyService: ITelephonyService;
   public callRepository: ICallRepository;
   public deduplicationService: IDeduplicationService;
+  public crmRepository: ICrmRepository;
   private logger = new Logger("App");
 
   constructor(config: IAppConfig) {
@@ -33,6 +38,7 @@ export class App {
     // 1. Initialize Services & Repositories (Dependency Injection)
     this.telephonyService = new FreJunService(this.config);
     this.callRepository = new InMemoryCallRepository();
+    this.crmRepository = new InMemoryCrmRepository();
     this.deduplicationService = new MemoryDeduplicationService(
       this.config.callSettings.duplicateCooldownSeconds
     );
@@ -74,19 +80,24 @@ export class App {
     const callController = new CallController(
       this.telephonyService,
       this.callRepository,
-      this.deduplicationService
+      this.deduplicationService,
+      this.crmRepository
     );
     const webhookController = new WebhookController(
       this.telephonyService,
       this.callRepository,
       this.deduplicationService
     );
+    const crmController = new CrmController(this.crmRepository);
 
     // Health
     this.app.get("/api/health", healthController.check);
 
     // Outbound Calls API
     this.app.use("/api/calls", createCallRoutes(callController, this.deduplicationService));
+
+    // Multi-Creator & Multi-Candidate CRM API
+    this.app.use("/api/crm", createCrmRoutes(crmController));
 
     // FreJun Call Flow and Webhook endpoints under /api/teler
     this.app.use("/api/teler", createWebhookRoutes(webhookController));

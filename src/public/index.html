@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hashtagg CRM • FreJun One-Click Calling</title>
-  <meta name="description" content="One-click outbound dialing application powered by FreJun Teler Voice API for Hashtagg CRM.">
+  <title>Hashtagg CRM • FreJun Multi-Agent Calling</title>
+  <meta name="description" content="Multi-agent and multi-candidate outbound calling platform integrating FreJun CRM Dialer API for Hashtagg CRM.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 </head>
 <body>
 
-  <!-- Top App Navigation -->
+  <!-- Top Navigation Header -->
   <header class="app-header">
     <div class="logo-group">
       <div class="logo-icon">
@@ -21,9 +21,27 @@
         </svg>
       </div>
       <div class="logo-text">
-        <h1>Hashtagg Dialer <span class="badge-crm">CRM Integrated</span></h1>
-        <p>Powered by FreJun Teler Voice Infrastructure</p>
+        <h1>Hashtagg Dialer <span class="badge-crm">MULTI-AGENT CRM</span></h1>
+        <p>FreJun CRM Dialer & Teler Voice Infrastructure</p>
       </div>
+    </div>
+
+    <!-- Active Calling Agent Indicator & Switcher in Header -->
+    <div class="header-center">
+      <div class="active-agent-pill" id="header-active-agent-pill" title="Click to switch Calling Agent">
+        <span class="agent-avatar-icon">🎧</span>
+        <div class="agent-pill-info">
+          <span class="agent-pill-title">Active Caller:</span>
+          <span class="agent-pill-name" id="header-active-agent-name">Loading...</span>
+        </div>
+        <span class="agent-pill-arrow">▾</span>
+      </div>
+      <button type="button" class="btn-header-action" id="btn-quick-add-agent" title="Add a new Calling Agent">
+        + Agent
+      </button>
+      <button type="button" class="btn-header-action secondary" id="btn-quick-add-candidate" title="Add a new CRM Lead/Candidate">
+        + Lead
+      </button>
     </div>
 
     <div class="header-status">
@@ -34,25 +52,71 @@
     </div>
   </header>
 
-  <!-- Main Grid Layout -->
+  <!-- Main Grid Container -->
   <main class="app-container">
     
-    <!-- Left Column: One-Click Dialer -->
+    <!-- Left Column: One-Click Dialer & Active Agent HUD -->
     <section class="card dialer-box" id="dialer-section">
       <div class="card-title">
-        <span>One-Click Outbound Dial</span>
-        <span class="badge-crm" id="caller-id-badge">Caller: Loading...</span>
+        <span>Outbound Dialer</span>
+        <span class="badge-crm" id="caller-id-badge">Virtual Caller ID: Loading...</span>
       </div>
-      <p class="card-desc">
-        Initiate instant calls to leads or customers directly from Hashtagg CRM. Follows the official FreJun Teler REST API and automated Call Flow routing.
-      </p>
 
-      <div class="form-group">
-        <label class="form-label" for="phone-input">
-          <span>Destination Phone Number (E.164)</span>
-          <span id="phone-validation-hint" style="color: var(--text-dim);">e.g. +91 98765 43210</span>
-        </label>
-        
+      <!-- Creator / Caller Selector Card -->
+      <div class="agent-context-card">
+        <div class="agent-context-header">
+          <span class="section-micro-label">CALLING AGENT (CREATOR / SENDER)</span>
+          <select id="agent-selector-dropdown" class="creator-quick-select" aria-label="Select Calling Agent">
+            <!-- Dynamically populated with Ritik, Aman, Ritu -->
+          </select>
+        </div>
+        <div class="agent-context-body">
+          <div class="agent-avatar-large" id="current-agent-avatar">🎧</div>
+          <div class="agent-context-details">
+            <div class="agent-name-row">
+              <strong id="current-agent-name">Ritik</strong>
+              <span class="badge-role" id="current-agent-role">Calling Agent</span>
+            </div>
+            <div class="agent-meta-row">
+              <span id="current-agent-phone">📞 +91 96507 90587</span>
+              <span id="current-agent-email">✉️ info@maxpinetechnology.com</span>
+            </div>
+          </div>
+        </div>
+        <div class="agent-bridge-note" id="agent-bridge-note-text">
+          ℹ️ Outbound call: FreJun rings <strong>agent phone</strong> (<span id="agent-ring-target">+91 96507 90587</span>) first. When answered, customer is bridged!
+        </div>
+      </div>
+
+      <!-- Call Direction Switcher (Outbound vs Inbound) -->
+      <div class="call-direction-toggle-wrap">
+        <div class="toggle-mode-group">
+          <button type="button" class="btn-mode-toggle active" id="btn-mode-outbound" onclick="window.setCallDirection('outbound')">
+            📞 Outbound (Agent ➔ Lead)
+          </button>
+          <button type="button" class="btn-mode-toggle" id="btn-mode-inbound" onclick="window.setCallDirection('inbound')">
+            📥 Inbound (Lead ➔ Agent)
+          </button>
+        </div>
+      </div>
+
+      <!-- Candidate (Receiver) Selection -->
+      <div class="form-group" style="margin-top: 10px;">
+        <div class="label-row">
+          <label class="form-label" for="phone-input">
+            <span id="destination-field-label">Destination / Candidate (Receiver)</span>
+          </label>
+          <span id="phone-validation-hint" style="color: var(--text-dim); font-size: 0.75rem;">Select from CRM or enter number</span>
+        </div>
+
+        <!-- Quick Candidate Dropdown Selector -->
+        <div class="candidate-dropdown-wrap">
+          <select id="candidate-selector-dropdown" class="candidate-select" aria-label="Select Candidate">
+            <option value="">-- Choose Existing CRM Candidate / Lead --</option>
+          </select>
+        </div>
+
+        <!-- Direct Phone Number Input -->
         <div class="phone-input-wrap">
           <select id="country-code" class="country-select" aria-label="Country Code">
             <option value="+91" selected>🇮🇳 +91</option>
@@ -72,22 +136,60 @@
         </div>
       </div>
 
-      <!-- Quick Dial Presets for Testing -->
+      <!-- Assigned Agent ⇄ Lead Pairs Section -->
       <div class="quick-dial-section">
-        <span class="quick-dial-title">Quick-Dial CRM Test Leads</span>
-        <div class="quick-chips">
-          <button type="button" class="chip-btn" data-phone="+919876543210">
-            <span>👤 Amit Sharma</span>
-            <small style="opacity: 0.7;">+91 98765 43210</small>
-          </button>
-          <button type="button" class="chip-btn" data-phone="+919988776655">
-            <span>👤 Priya Patel</span>
-            <small style="opacity: 0.7;">+91 99887 76655</small>
-          </button>
-          <button type="button" class="chip-btn" data-phone="+14155550123">
-            <span>🏢 US Office</span>
-            <small style="opacity: 0.7;">+1 415 555 0123</small>
-          </button>
+        <div class="quick-dial-header">
+          <span class="quick-dial-title">⚡ 2-Way Calling Pairs</span>
+          <button type="button" class="btn-link" id="btn-see-all-candidates">All Leads →</button>
+        </div>
+        <div class="pair-cards-container">
+          <!-- Pair 1: Ritik (Agent) <-> Priya (Lead) -->
+          <div class="pair-card" id="pair-ritik-priya">
+            <div class="pair-info">
+              <div class="pair-names"><strong>🎧 Ritik (Agent)</strong> ⇄ <strong>👤 Priya (Lead)</strong></div>
+              <div class="pair-numbers"><code>+91 96507 90587</code> ⇄ <code>+91 84457 15131</code></div>
+            </div>
+            <div class="pair-actions">
+              <button type="button" class="btn-pair-dial" title="Outbound: Agent Ritik calls Lead Priya" onclick="window.dialPair('outbound', 'creator_ritik', 'cand_priya')">
+                Outbound (Ritik ➔ Priya)
+              </button>
+              <button type="button" class="btn-pair-dial secondary" title="Inbound: Lead Priya calls Agent Ritik" onclick="window.dialPair('inbound', 'creator_ritik', 'cand_priya')">
+                Inbound (Priya ➔ Ritik)
+              </button>
+            </div>
+          </div>
+
+          <!-- Pair 2: Aman (Agent) <-> Ayush (Lead) -->
+          <div class="pair-card" id="pair-aman-ayush">
+            <div class="pair-info">
+              <div class="pair-names"><strong>🎧 Aman (Agent)</strong> ⇄ <strong>👤 Ayush (Lead)</strong></div>
+              <div class="pair-numbers"><code>+91 83768 22509</code> ⇄ <code>+91 91358 31645</code></div>
+            </div>
+            <div class="pair-actions">
+              <button type="button" class="btn-pair-dial" title="Outbound: Agent Aman calls Lead Ayush" onclick="window.dialPair('outbound', 'creator_aman', 'cand_ayush')">
+                Outbound (Aman ➔ Ayush)
+              </button>
+              <button type="button" class="btn-pair-dial secondary" title="Inbound: Lead Ayush calls Agent Aman" onclick="window.dialPair('inbound', 'creator_aman', 'cand_ayush')">
+                Inbound (Ayush ➔ Aman)
+              </button>
+            </div>
+          </div>
+
+          <!-- Pair 3: Ritu (Agent) <-> Ananya (Lead) -->
+          <div class="pair-card" id="pair-ritu-ananya">
+            <div class="pair-info">
+              <div class="pair-names"><strong>🎧 Ritu (Agent)</strong> ⇄ <strong>👤 Ananya (Lead)</strong></div>
+              <div class="pair-numbers"><code>+91 79032 34057</code> ⇄ <code>+91 83038 31398</code></div>
+            </div>
+            <div class="pair-actions">
+              <button type="button" class="btn-pair-dial" title="Outbound: Agent Ritu calls Lead Ananya" onclick="window.dialPair('outbound', 'creator_ritu', 'cand_ananya')">
+                Outbound (Ritu ➔ Ananya)
+              </button>
+              <button type="button" class="btn-pair-dial secondary" title="Inbound: Lead Ananya calls Agent Ritu" onclick="window.dialPair('inbound', 'creator_ritu', 'cand_ananya')">
+                Inbound (Ananya ➔ Ritu)
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -97,10 +199,10 @@
         <svg id="btn-phone-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.43-3.9-6.63-6.82l1.97-1.57c.28-.28.37-.67.25-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
         </svg>
-        <span id="btn-text">Call Now</span>
+        <span id="btn-text">Initiate Call</span>
       </button>
 
-      <!-- Active Call Card -->
+      <!-- Active Call HUD Card -->
       <div class="active-call-card" id="active-call-card">
         <div class="active-call-header">
           <div class="call-state-badge state-initiated" id="call-badge">
@@ -112,20 +214,20 @@
 
         <div class="active-call-meta">
           <div class="meta-item">
-            Destination:
+            Agent (Leg 1):
+            <span id="meta-agent-number">+91...</span>
+          </div>
+          <div class="meta-item">
+            Candidate (Leg 2):
             <span id="meta-to-number">+91...</span>
           </div>
           <div class="meta-item">
             Call ID:
-            <span id="meta-call-id" style="font-size: 0.7rem; cursor: pointer;" title="Click to copy">cs_...</span>
+            <span id="meta-call-id" style="font-size: 0.75rem; cursor: pointer;" title="Click to copy">cs_...</span>
           </div>
           <div class="meta-item">
-            Flow Action:
-            <span id="meta-flow-action">play</span>
-          </div>
-          <div class="meta-item">
-            Status Callback:
-            <span id="meta-callback-status">Registered</span>
+            Platform:
+            <span id="meta-flow-action">FreJun CRM</span>
           </div>
         </div>
 
@@ -135,41 +237,71 @@
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
           </svg>
           <div id="flow-explainer-text">
-            <strong>FreJun Call Flow Active:</strong> When the callee answers, FreJun queries <code>/api/teler/flow</code> and will execute the configured action.
+            <strong>FreJun Two-Legged Call:</strong> FreJun is ringing the Agent first. When answered, it bridges to the candidate!
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Right Column: Live Webhooks and Call History -->
+    <!-- Right Column: Tabs (Candidates, Creators, Webhooks, History) -->
     <section class="card right-panel">
       <div class="tabs-nav">
-        <button type="button" class="tab-btn active" data-tab="tab-webhooks">
-          📡 Live Webhooks (<span id="event-count">0</span>)
+        <button type="button" class="tab-btn active" data-tab="tab-candidates">
+          👥 Candidates / Leads (<span id="candidate-count">0</span>)
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-creators">
+          🎧 Calling Agents (<span id="creator-count">0</span>)
         </button>
         <button type="button" class="tab-btn" data-tab="tab-history">
           🕒 Call History (<span id="history-count">0</span>)
         </button>
-        <button type="button" class="tab-btn" data-tab="tab-flow-info">
-          ⚙️ Architecture & Flow
+        <button type="button" class="tab-btn" data-tab="tab-webhooks">
+          📡 Webhooks (<span id="event-count">0</span>)
         </button>
       </div>
 
-      <!-- Tab 1: Live Webhooks Feed -->
-      <div class="tab-pane active" id="tab-webhooks">
-        <div class="feed-container" id="webhooks-feed">
-          <div class="empty-state">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+      <!-- Tab 1: Candidates CRM Management -->
+      <div class="tab-pane active" id="tab-candidates">
+        <div class="tab-toolbar">
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24">
+              <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
-            <p>Waiting for FreJun Teler webhook callbacks...</p>
-            <p style="font-size: 0.75rem; margin-top: 4px;">Lifecycle events (<code>call.initiated</code>, <code>call.answered</code>, <code>call.completed</code>) will display here in real-time.</p>
+            <input type="text" id="candidate-search-input" placeholder="Search candidate by name, company, or phone..." />
           </div>
+          <button type="button" class="btn-primary-action" id="open-candidate-modal-btn">
+            + Add Candidate
+          </button>
+        </div>
+
+        <div class="feed-container" id="candidates-container">
+          <!-- Populated dynamically via JS -->
         </div>
       </div>
 
-      <!-- Tab 2: Call History -->
+      <!-- Tab 2: Creators / Agents Management -->
+      <div class="tab-pane" id="tab-creators">
+        <div class="tab-toolbar">
+          <div class="tab-title-text">
+            <strong>Calling Agents & Team</strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Each agent receives the first leg of the outbound call on their configured mobile.</span>
+          </div>
+          <button type="button" class="btn-primary-action" id="open-creator-modal-btn">
+            + Add Agent
+          </button>
+        </div>
+
+        <div class="feed-container" id="creators-container">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Tab 3: Call History -->
       <div class="tab-pane" id="tab-history">
+        <div class="tab-toolbar">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Real-time Telephony Call Records & Durations</span>
+          <button type="button" class="btn-secondary-action" id="btn-refresh-history">Refresh</button>
+        </div>
         <div class="feed-container" id="history-feed">
           <div class="empty-state">
             <p>No outbound calls logged yet.</p>
@@ -177,34 +309,117 @@
         </div>
       </div>
 
-      <!-- Tab 3: Architecture Info -->
-      <div class="tab-pane" id="tab-flow-info">
-        <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-muted); display: flex; flex-direction: column; gap: 14px;">
-          <h3 style="color: var(--text-main); font-family: var(--font-display); font-size: 1.05rem;">
-            How FreJun Teler One-Click Calling Works
-          </h3>
-          <p>
-            1. <strong>Outbound Dial:</strong> Clicking <em>Call Now</em> issues a <code>POST /api/calls</code> to the Express backend, which calls FreJun Teler API (<code>POST /api/v1/voice/calls/initiate</code>) with authenticated <code>X-API-Key</code>.
-          </p>
-          <p>
-            2. <strong>Call Flow Handshake:</strong> Teler dials the destination number. When callee answers, Teler POSTs to your <code>flow_url</code>. The server responds within 5s with an action:
-          </p>
-          <ul style="padding-left: 1.25rem;">
-            <li><code>play</code>: Streams audio file (greeting/announcement) and hangs up.</li>
-            <li><code>dial</code>: Bridges caller to an agent phone (two-way conversation).</li>
-            <li><code>stream</code>: Opens bidirectional WebSocket for AI voice agent.</li>
-          </ul>
-          <p>
-            3. <strong>HMAC Signature Verification:</strong> Status webhooks (<code>call.initiated</code>, <code>call.answered</code>, <code>call.completed</code>) sent to <code>status_callback_url</code> are verified using HMAC-SHA256 with <code>X-Teler-Signature</code> and <code>X-Teler-Timestamp</code> headers.
-          </p>
-          <p>
-            4. <strong>Deduplication Guard:</strong> Built-in in-flight cooldown prevents accidental double-dialing of the same lead from Hashtagg CRM.
-          </p>
+      <!-- Tab 4: Webhooks Feed -->
+      <div class="tab-pane" id="tab-webhooks">
+        <div class="feed-container" id="webhooks-feed">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <p>Waiting for FreJun webhook events...</p>
+          </div>
         </div>
       </div>
     </section>
 
   </main>
+
+  <!-- MODAL: Add New Candidate (Lead) -->
+  <div class="modal-backdrop" id="candidate-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add New Candidate / Lead</h3>
+        <button type="button" class="modal-close-btn" id="close-candidate-modal">&times;</button>
+      </div>
+      <form id="add-candidate-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" id="candidate-name-input" class="form-control" placeholder="e.g. Rahul Sharma" required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Phone Number (E.164) *</label>
+            <div class="phone-input-wrap">
+              <input type="tel" id="candidate-phone-input" class="form-control" placeholder="e.g. +91 98765 43210" required />
+            </div>
+            <small style="font-size: 0.72rem; color: var(--text-dim);">Must include country code like +91</small>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Company Name</label>
+              <input type="text" id="candidate-company-input" class="form-control" placeholder="e.g. Acme Innovations" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email Address</label>
+              <input type="email" id="candidate-email-input" class="form-control" placeholder="e.g. rahul@acme.com" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Lead Tags (comma separated)</label>
+            <input type="text" id="candidate-tags-input" class="form-control" placeholder="e.g. Hot Lead, Enterprise, VIP" value="Hot Lead" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <textarea id="candidate-notes-input" class="form-control" rows="2" placeholder="Discussion points, preferences..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancel-candidate-modal">Cancel</button>
+          <button type="submit" class="btn-primary" id="save-candidate-btn">Save Candidate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Add New Creator (Agent) -->
+  <div class="modal-backdrop" id="creator-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Add New Calling Agent (Creator)</h3>
+        <button type="button" class="modal-close-btn" id="close-creator-modal">&times;</button>
+      </div>
+      <form id="add-creator-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Agent Full Name *</label>
+            <input type="text" id="creator-name-input" class="form-control" placeholder="e.g. Priya Sharma" required />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">FreJun User Email *</label>
+            <input type="email" id="creator-email-input" class="form-control" placeholder="e.g. priya@maxpinetechnology.com" required />
+            <small style="font-size: 0.72rem; color: var(--text-dim);">Agent user registered on your FreJun account</small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Agent Mobile Number (E.164) *</label>
+            <input type="tel" id="creator-phone-input" class="form-control" placeholder="e.g. +91 83768 22509" required />
+            <small style="font-size: 0.72rem; color: var(--text-dim);">Where FreJun rings the agent when an outbound call starts</small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Role / Designation</label>
+            <input type="text" id="creator-role-input" class="form-control" placeholder="e.g. Senior Sales Executive" value="Sales Representative" />
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" id="creator-default-check" checked />
+            <label for="creator-default-check">Set as current active calling agent</label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancel-creator-modal">Cancel</button>
+          <button type="submit" class="btn-primary" id="save-creator-btn">Add Agent</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>

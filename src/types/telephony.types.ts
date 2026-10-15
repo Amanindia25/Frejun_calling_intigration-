@@ -13,6 +13,10 @@ export type TelephonyProvider = "frejun" | "twilio" | "mock" | string;
 export interface InitiateCallDto {
   toNumber: string; // Destination E.164 phone number
   fromNumber?: string; // Optional caller ID (defaults to system config)
+  creatorId?: string; // Selected agent/creator ID
+  candidateId?: string; // Selected candidate/lead ID
+  userEmail?: string; // FreJun Agent Email (e.g., info@maxpinetechnology.com)
+  creatorNumber?: string; // FreJun Agent Phone Number (e.g., +918376822509)
   flowUrl?: string; // Optional custom Call Flow endpoint
   statusCallbackUrl?: string; // Optional custom Webhook status endpoint
   record?: boolean; // Whether to record the call

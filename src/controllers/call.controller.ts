@@ -7,6 +7,8 @@ import { ApiResponse } from "../types/api.types";
 import { isValidE164, normalizePhoneNumber } from "../utils/phone.utils";
 import { Logger } from "../utils/logger";
 
+import { ICrmRepository } from "../services/crm.repository";
+
 export const initiateCallSchema = z.object({
   toNumber: z
     .string()
@@ -22,6 +24,10 @@ export const initiateCallSchema = z.object({
     .refine((val) => !val || isValidE164(val), {
       message: "Caller phone number must be in valid E.164 format (e.g. +91XXXXXXXXXX)",
     }),
+  creatorId: z.string().optional(),
+  candidateId: z.string().optional(),
+  userEmail: z.string().email().optional(),
+  creatorNumber: z.string().optional(),
   flowUrl: z.string().url("flowUrl must be a valid URL").optional(),
   statusCallbackUrl: z.string().url("statusCallbackUrl must be a valid URL").optional(),
   record: z.boolean().optional(),
@@ -35,16 +41,19 @@ export class CallController {
   private telephonyService: ITelephonyService;
   private callRepository: ICallRepository;
   private deduplicationService: IDeduplicationService;
+  private crmRepository?: ICrmRepository;
   private logger = new Logger("CallController");
 
   constructor(
     telephonyService: ITelephonyService,
     callRepository: ICallRepository,
-    deduplicationService: IDeduplicationService
+    deduplicationService: IDeduplicationService,
+    crmRepository?: ICrmRepository
   ) {
     this.telephonyService = telephonyService;
     this.callRepository = callRepository;
     this.deduplicationService = deduplicationService;
+    this.crmRepository = crmRepository;
   }
 
   /**
@@ -54,21 +63,76 @@ export class CallController {
   public initiateCall = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = req.body as InitiateCallInput;
-      this.logger.info("Received outbound call request", { toNumber: input.toNumber });
+      let targetNumber = input.toNumber;
+      let userEmail = input.userEmail;
+      let creatorNumber = input.creatorNumber;
+      const metadata = { ...(input.metadata || {}) };
+
+      // Resolve Candidate context if candidateId provided
+      if (input.candidateId && this.crmRepository) {
+        const candidate = await this.crmRepository.getCandidateById(input.candidateId);
+        if (candidate) {
+          if (!input.toNumber || metadata.callDirection !== "inbound") {
+            targetNumber = candidate.phone;
+          }
+          metadata.candidate = {
+            id: candidate.id,
+            name: candidate.name,
+            phone: candidate.phone,
+            company: candidate.company,
+          };
+        }
+      }
+
+      // Resolve Creator / Agent context if creatorId provided or fetch default
+      if (this.crmRepository) {
+        let creator = input.creatorId
+          ? await this.crmRepository.getCreatorById(input.creatorId)
+          : await this.crmRepository.getDefaultCreator();
+
+        if (creator) {
+          userEmail = userEmail || creator.email;
+          if (!creatorNumber) {
+            creatorNumber = creator.phone;
+          }
+          metadata.creator = {
+            id: creator.id,
+            name: creator.name,
+            email: creator.email,
+            phone: creator.phone,
+            role: creator.role,
+          };
+        }
+      }
+
+      this.logger.info("Received outbound call request", {
+        toNumber: targetNumber,
+        creatorNumber,
+        userEmail,
+      });
 
       // Initiate call via telephony provider
       const session = await this.telephonyService.initiateCall({
-        toNumber: input.toNumber,
+        toNumber: targetNumber,
         fromNumber: input.fromNumber,
+        creatorId: input.creatorId,
+        candidateId: input.candidateId,
+        userEmail,
+        creatorNumber,
         flowUrl: input.flowUrl,
         statusCallbackUrl: input.statusCallbackUrl,
         record: input.record,
         idempotencyKey: input.idempotencyKey,
-        metadata: input.metadata,
+        metadata,
       });
 
       // Persist in repository
       await this.callRepository.create(session);
+
+      // Register call to candidate in CRM stats
+      if (this.crmRepository) {
+        await this.crmRepository.recordCallToCandidate(input.candidateId || targetNumber);
+      }
 
       // Register call in deduplication service to prevent rapid accidental re-dials
       this.deduplicationService.registerCall(
