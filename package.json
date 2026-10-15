@@ -1,0 +1,40 @@
+{
+  "name": "hashtagg-frejun-calling",
+  "version": "1.0.0",
+  "description": "Modular one-click outbound calling application integrating FreJun Teler API for Hashtagg CRM",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc && node -e \"const fs=require('fs'); fs.cpSync('src/public', 'dist/public', { recursive: true });\"",
+    "start": "node dist/server.js",
+    "test:api": "tsx scripts/test-api.ts",
+    "test:webhook": "tsx scripts/simulate-webhook.ts"
+  },
+  "keywords": [
+    "frejun",
+    "teler",
+    "calling",
+    "crm",
+    "telephony",
+    "outbound-call",
+    "express",
+    "typescript"
+  ],
+  "author": "Hashtagg CRM Team",
+  "license": "MIT",
+  "dependencies": {
+    "@frejun/teler": "^2.0.0",
+    "axios": "^1.20.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

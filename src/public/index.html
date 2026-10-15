@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hashtagg CRM • FreJun One-Click Calling</title>
+  <meta name="description" content="One-click outbound dialing application powered by FreJun Teler Voice API for Hashtagg CRM.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="logo-group">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <h1>Hashtagg Dialer <span class="badge-crm">CRM Integrated</span></h1>
+        <p>Powered by FreJun Teler Voice Infrastructure</p>
+      </div>
+    </div>
+
+    <div class="header-status">
+      <div class="status-pill" id="system-status-pill" title="Click to refresh diagnostic state">
+        <span class="status-dot pulsing" id="system-status-dot"></span>
+        <span id="system-status-text">Checking System...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid Layout -->
+  <main class="app-container">
+    
+    <!-- Left Column: One-Click Dialer -->
+    <section class="card dialer-box" id="dialer-section">
+      <div class="card-title">
+        <span>One-Click Outbound Dial</span>
+        <span class="badge-crm" id="caller-id-badge">Caller: Loading...</span>
+      </div>
+      <p class="card-desc">
+        Initiate instant calls to leads or customers directly from Hashtagg CRM. Follows the official FreJun Teler REST API and automated Call Flow routing.
+      </p>
+
+      <div class="form-group">
+        <label class="form-label" for="phone-input">
+          <span>Destination Phone Number (E.164)</span>
+          <span id="phone-validation-hint" style="color: var(--text-dim);">e.g. +91 98765 43210</span>
+        </label>
+        
+        <div class="phone-input-wrap">
+          <select id="country-code" class="country-select" aria-label="Country Code">
+            <option value="+91" selected>🇮🇳 +91</option>
+            <option value="+1">🇺🇸 +1</option>
+            <option value="+44">🇬🇧 +44</option>
+            <option value="+971">🇦🇪 +971</option>
+            <option value="+65">🇸🇬 +65</option>
+            <option value="">🌐 Custom</option>
+          </select>
+          <input 
+            type="tel" 
+            id="phone-input" 
+            class="phone-input" 
+            placeholder="Enter mobile or landline number"
+            autocomplete="tel"
+          />
+        </div>
+      </div>
+
+      <!-- Quick Dial Presets for Testing -->
+      <div class="quick-dial-section">
+        <span class="quick-dial-title">Quick-Dial CRM Test Leads</span>
+        <div class="quick-chips">
+          <button type="button" class="chip-btn" data-phone="+919876543210">
+            <span>👤 Amit Sharma</span>
+            <small style="opacity: 0.7;">+91 98765 43210</small>
+          </button>
+          <button type="button" class="chip-btn" data-phone="+919988776655">
+            <span>👤 Priya Patel</span>
+            <small style="opacity: 0.7;">+91 99887 76655</small>
+          </button>
+          <button type="button" class="chip-btn" data-phone="+14155550123">
+            <span>🏢 US Office</span>
+            <small style="opacity: 0.7;">+1 415 555 0123</small>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dial Button -->
+      <button type="button" id="call-now-btn" class="call-btn">
+        <div class="btn-spinner" id="btn-spinner"></div>
+        <svg id="btn-phone-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.43-3.9-6.63-6.82l1.97-1.57c.28-.28.37-.67.25-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
+        </svg>
+        <span id="btn-text">Call Now</span>
+      </button>
+
+      <!-- Active Call Card -->
+      <div class="active-call-card" id="active-call-card">
+        <div class="active-call-header">
+          <div class="call-state-badge state-initiated" id="call-badge">
+            <span class="status-dot" id="badge-dot"></span>
+            <span id="badge-text">Initiating</span>
+          </div>
+          <div class="call-timer" id="call-timer">00:00</div>
+        </div>
+
+        <div class="active-call-meta">
+          <div class="meta-item">
+            Destination:
+            <span id="meta-to-number">+91...</span>
+          </div>
+          <div class="meta-item">
+            Call ID:
+            <span id="meta-call-id" style="font-size: 0.7rem; cursor: pointer;" title="Click to copy">cs_...</span>
+          </div>
+          <div class="meta-item">
+            Flow Action:
+            <span id="meta-flow-action">play</span>
+          </div>
+          <div class="meta-item">
+            Status Callback:
+            <span id="meta-callback-status">Registered</span>
+          </div>
+        </div>
+
+        <!-- Note regarding Call Flow -->
+        <div class="flow-explainer" id="flow-explainer-banner">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+          </svg>
+          <div id="flow-explainer-text">
+            <strong>FreJun Call Flow Active:</strong> When the callee answers, FreJun queries <code>/api/teler/flow</code> and will execute the configured action.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Live Webhooks and Call History -->
+    <section class="card right-panel">
+      <div class="tabs-nav">
+        <button type="button" class="tab-btn active" data-tab="tab-webhooks">
+          📡 Live Webhooks (<span id="event-count">0</span>)
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-history">
+          🕒 Call History (<span id="history-count">0</span>)
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-flow-info">
+          ⚙️ Architecture & Flow
+        </button>
+      </div>
+
+      <!-- Tab 1: Live Webhooks Feed -->
+      <div class="tab-pane active" id="tab-webhooks">
+        <div class="feed-container" id="webhooks-feed">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <p>Waiting for FreJun Teler webhook callbacks...</p>
+            <p style="font-size: 0.75rem; margin-top: 4px;">Lifecycle events (<code>call.initiated</code>, <code>call.answered</code>, <code>call.completed</code>) will display here in real-time.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Call History -->
+      <div class="tab-pane" id="tab-history">
+        <div class="feed-container" id="history-feed">
+          <div class="empty-state">
+            <p>No outbound calls logged yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Architecture Info -->
+      <div class="tab-pane" id="tab-flow-info">
+        <div style="font-size: 0.85rem; line-height: 1.6; color: var(--text-muted); display: flex; flex-direction: column; gap: 14px;">
+          <h3 style="color: var(--text-main); font-family: var(--font-display); font-size: 1.05rem;">
+            How FreJun Teler One-Click Calling Works
+          </h3>
+          <p>
+            1. <strong>Outbound Dial:</strong> Clicking <em>Call Now</em> issues a <code>POST /api/calls</code> to the Express backend, which calls FreJun Teler API (<code>POST /api/v1/voice/calls/initiate</code>) with authenticated <code>X-API-Key</code>.
+          </p>
+          <p>
+            2. <strong>Call Flow Handshake:</strong> Teler dials the destination number. When callee answers, Teler POSTs to your <code>flow_url</code>. The server responds within 5s with an action:
+          </p>
+          <ul style="padding-left: 1.25rem;">
+            <li><code>play</code>: Streams audio file (greeting/announcement) and hangs up.</li>
+            <li><code>dial</code>: Bridges caller to an agent phone (two-way conversation).</li>
+            <li><code>stream</code>: Opens bidirectional WebSocket for AI voice agent.</li>
+          </ul>
+          <p>
+            3. <strong>HMAC Signature Verification:</strong> Status webhooks (<code>call.initiated</code>, <code>call.answered</code>, <code>call.completed</code>) sent to <code>status_callback_url</code> are verified using HMAC-SHA256 with <code>X-Teler-Signature</code> and <code>X-Teler-Timestamp</code> headers.
+          </p>
+          <p>
+            4. <strong>Deduplication Guard:</strong> Built-in in-flight cooldown prevents accidental double-dialing of the same lead from Hashtagg CRM.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
