@@ -26,15 +26,13 @@
       </div>
     </div>
 
-    <!-- Active Calling Agent Indicator & Switcher in Header -->
+    <!-- 2 Concurrent Calling Stations Indicator in Header -->
     <div class="header-center">
-      <div class="active-agent-pill" id="header-active-agent-pill" title="Click to switch Calling Agent">
-        <span class="agent-avatar-icon">🎧</span>
-        <div class="agent-pill-info">
-          <span class="agent-pill-title">Active Caller:</span>
-          <span class="agent-pill-name" id="header-active-agent-name">Loading...</span>
-        </div>
-        <span class="agent-pill-arrow">▾</span>
+      <div class="agents-stations-pill" id="header-stations-summary" title="Both Calling Agents are live and ready to dial">
+        <span class="stations-pulse-dot"></span>
+        <span class="stations-pill-title">Active Stations:</span>
+        <span class="station-mini-tag" id="header-tag-aman">🎧 Aman: <strong class="text-green" id="header-status-aman">Ready</strong></span>
+        <span class="station-mini-tag" id="header-tag-ritu">🎧 Ritu: <strong class="text-green" id="header-status-ritu">Ready</strong></span>
       </div>
       <button type="button" class="btn-header-action" id="btn-quick-add-agent" title="Add a new Calling Agent">
         + Agent
@@ -45,6 +43,10 @@
     </div>
 
     <div class="header-status">
+      <div class="live-calls-header-badge" id="header-live-calls-badge" style="display: none;" title="Active calls currently in progress">
+        <span class="live-pulse-dot"></span>
+        <span id="header-live-calls-count">0 Live Calls</span>
+      </div>
       <div class="status-pill" id="system-status-pill" title="Click to refresh diagnostic state">
         <span class="status-dot pulsing" id="system-status-dot"></span>
         <span id="system-status-text">Checking System...</span>
@@ -58,186 +60,210 @@
     <!-- Left Column: One-Click Dialer & Active Agent HUD -->
     <section class="card dialer-box" id="dialer-section">
       <div class="card-title">
-        <span>Outbound Dialer</span>
+        <span>Multi-Agent Calling Board</span>
         <span class="badge-crm" id="caller-id-badge">Virtual Caller ID: Loading...</span>
       </div>
 
-      <!-- Creator / Caller Selector Card -->
-      <div class="agent-context-card">
-        <div class="agent-context-header">
-          <span class="section-micro-label">CALLING AGENT (CREATOR / SENDER)</span>
-          <select id="agent-selector-dropdown" class="creator-quick-select" aria-label="Select Calling Agent">
-            <!-- Dynamically populated with Ritik, Aman, Ritu -->
-          </select>
-        </div>
-        <div class="agent-context-body">
-          <div class="agent-avatar-large" id="current-agent-avatar">🎧</div>
-          <div class="agent-context-details">
-            <div class="agent-name-row">
-              <strong id="current-agent-name">Ritik</strong>
-              <span class="badge-role" id="current-agent-role">Calling Agent</span>
+      <!-- SECTION 1: 2 Concurrent Calling Stations (All Active Simultaneously) -->
+      <div class="stations-section" id="calling-stations-section">
+        <div class="stations-section-header">
+          <div class="stations-title-row">
+            <div class="stations-main-heading">
+              <span>🎙️ 2 Concurrent Agent Dialers</span>
+              <span class="stations-count-chip">Outbound Calling Only</span>
             </div>
-            <div class="agent-meta-row">
-              <span id="current-agent-phone">📞 +91 96507 90587</span>
-              <span id="current-agent-email">✉️ info@maxpinetechnology.com</span>
-            </div>
+            <button type="button" class="btn-dial-all-master" id="btn-dial-all-pairs" title="Launch both outbound calls concurrently: Aman ➔ Aman Lead, Ritu ➔ Ananya" onclick="window.dialAllOutboundStations()">
+              🚀 Dial Both Outbound Calls (Aman, Ritu)
+            </button>
+          </div>
+          <div style="font-size: 0.74rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <span>CRM initiates Outbound calls only. Incoming calls dialed by customers are automatically detected as Inbound.</span>
+            <button type="button" class="btn-link" id="btn-see-all-candidates">All Leads →</button>
           </div>
         </div>
-        <div class="agent-bridge-note" id="agent-bridge-note-text">
-          ℹ️ Outbound call: FreJun rings <strong>agent phone</strong> (<span id="agent-ring-target">+91 96507 90587</span>) first. When answered, customer is bridged!
-        </div>
-      </div>
 
-      <!-- Call Direction Switcher (Outbound vs Inbound) -->
-      <div class="call-direction-toggle-wrap">
-        <div class="toggle-mode-group">
-          <button type="button" class="btn-mode-toggle active" id="btn-mode-outbound" onclick="window.setCallDirection('outbound')">
-            📞 Outbound (Agent ➔ Lead)
-          </button>
-          <button type="button" class="btn-mode-toggle" id="btn-mode-inbound" onclick="window.setCallDirection('inbound')">
-            📥 Inbound (Lead ➔ Agent)
-          </button>
-        </div>
-      </div>
-
-      <!-- Candidate (Receiver) Selection -->
-      <div class="form-group" style="margin-top: 10px;">
-        <div class="label-row">
-          <label class="form-label" for="phone-input">
-            <span id="destination-field-label">Destination / Candidate (Receiver)</span>
-          </label>
-          <span id="phone-validation-hint" style="color: var(--text-dim); font-size: 0.75rem;">Select from CRM or enter number</span>
-        </div>
-
-        <!-- Quick Candidate Dropdown Selector -->
-        <div class="candidate-dropdown-wrap">
-          <select id="candidate-selector-dropdown" class="candidate-select" aria-label="Select Candidate">
-            <option value="">-- Choose Existing CRM Candidate / Lead --</option>
-          </select>
-        </div>
-
-        <!-- Direct Phone Number Input -->
-        <div class="phone-input-wrap">
-          <select id="country-code" class="country-select" aria-label="Country Code">
-            <option value="+91" selected>🇮🇳 +91</option>
-            <option value="+1">🇺🇸 +1</option>
-            <option value="+44">🇬🇧 +44</option>
-            <option value="+971">🇦🇪 +971</option>
-            <option value="+65">🇸🇬 +65</option>
-            <option value="">🌐 Custom</option>
-          </select>
-          <input 
-            type="tel" 
-            id="phone-input" 
-            class="phone-input" 
-            placeholder="Enter mobile or landline number"
-            autocomplete="tel"
-          />
-        </div>
-      </div>
-
-      <!-- Assigned Agent ⇄ Lead Pairs Section -->
-      <div class="quick-dial-section">
-        <div class="quick-dial-header">
-          <span class="quick-dial-title">⚡ 2-Way Calling Pairs</span>
-          <button type="button" class="btn-link" id="btn-see-all-candidates">All Leads →</button>
-        </div>
         <div class="pair-cards-container">
-          <!-- Pair 1: Ritik (Agent) <-> Priya (Lead) -->
-          <div class="pair-card" id="pair-ritik-priya">
-            <div class="pair-info">
-              <div class="pair-names"><strong>🎧 Ritik (Agent)</strong> ⇄ <strong>👤 Priya (Lead)</strong></div>
-              <div class="pair-numbers"><code>+91 96507 90587</code> ⇄ <code>+91 84457 15131</code></div>
+          <!-- Station 1: Aman (Agent) <-> Aman Lead (Lead) -->
+          <div class="station-card" id="station-card-aman">
+            <div class="station-card-top">
+              <div class="station-agent-title">
+                <span class="station-agent-icon">🎧</span>
+                <div>
+                  <span class="station-agent-name">Station 1: Aman</span>
+                  <span class="station-lead-tag">Calling Agent</span>
+                </div>
+              </div>
+              <span class="station-status-pill ready" id="station-status-pill-aman">
+                <span class="status-dot pulsing" style="width:6px; height:6px;"></span>
+                <span id="station-status-text-aman">Idle (Ready)</span>
+              </span>
             </div>
-            <div class="pair-actions">
-              <button type="button" class="btn-pair-dial" title="Outbound: Agent Ritik calls Lead Priya" onclick="window.dialPair('outbound', 'creator_ritik', 'cand_priya')">
-                Outbound (Ritik ➔ Priya)
+
+            <div class="station-route-box">
+              <div class="station-route-row">
+                <span class="station-route-label">Agent (Caller):</span>
+                <span class="station-route-val">Aman <code>+91 83768 22509</code></span>
+              </div>
+              <div class="station-route-row">
+                <span class="station-route-label">Assigned Lead:</span>
+                <span class="station-route-val">Aman Lead <code>+91 89359 26120</code> <span class="badge-tag mini priority">Priority Lead</span></span>
+              </div>
+            </div>
+
+            <div class="station-actions-row">
+              <button type="button" class="btn-station-dial" id="btn-station-dial-aman" title="Initiate Outbound Call: Aman calls Aman Lead" onclick="window.dialStation('creator_aman')">
+                📞 Call Aman Lead (Aman ➔ Aman Lead)
               </button>
-              <button type="button" class="btn-pair-dial secondary" title="Inbound: Lead Priya calls Agent Ritik" onclick="window.dialPair('inbound', 'creator_ritik', 'cand_priya')">
-                Inbound (Priya ➔ Ritik)
+              <button type="button" class="btn-station-hangup" id="btn-station-hangup-aman" style="display: none;" title="End live call for Aman" onclick="window.hangupStationCall('creator_aman')">
+                🔴 Hang Up
               </button>
             </div>
           </div>
 
-          <!-- Pair 2: Aman (Agent) <-> Ayush (Lead) -->
-          <div class="pair-card" id="pair-aman-ayush">
-            <div class="pair-info">
-              <div class="pair-names"><strong>🎧 Aman (Agent)</strong> ⇄ <strong>👤 Ayush (Lead)</strong></div>
-              <div class="pair-numbers"><code>+91 83768 22509</code> ⇄ <code>+91 91358 31645</code></div>
+          <!-- Station 2: Ritu (Agent) <-> Ananya (Lead) -->
+          <div class="station-card" id="station-card-ritu">
+            <div class="station-card-top">
+              <div class="station-agent-title">
+                <span class="station-agent-icon">🎧</span>
+                <div>
+                  <span class="station-agent-name">Station 2: Ritu</span>
+                  <span class="station-lead-tag">Calling Agent</span>
+                </div>
+              </div>
+              <span class="station-status-pill ready" id="station-status-pill-ritu">
+                <span class="status-dot pulsing" style="width:6px; height:6px;"></span>
+                <span id="station-status-text-ritu">Idle (Ready)</span>
+              </span>
             </div>
-            <div class="pair-actions">
-              <button type="button" class="btn-pair-dial" title="Outbound: Agent Aman calls Lead Ayush" onclick="window.dialPair('outbound', 'creator_aman', 'cand_ayush')">
-                Outbound (Aman ➔ Ayush)
-              </button>
-              <button type="button" class="btn-pair-dial secondary" title="Inbound: Lead Ayush calls Agent Aman" onclick="window.dialPair('inbound', 'creator_aman', 'cand_ayush')">
-                Inbound (Ayush ➔ Aman)
-              </button>
-            </div>
-          </div>
 
-          <!-- Pair 3: Ritu (Agent) <-> Ananya (Lead) -->
-          <div class="pair-card" id="pair-ritu-ananya">
-            <div class="pair-info">
-              <div class="pair-names"><strong>🎧 Ritu (Agent)</strong> ⇄ <strong>👤 Ananya (Lead)</strong></div>
-              <div class="pair-numbers"><code>+91 79032 34057</code> ⇄ <code>+91 83038 31398</code></div>
+            <div class="station-route-box">
+              <div class="station-route-row">
+                <span class="station-route-label">Agent (Caller):</span>
+                <span class="station-route-val">Ritu <code>+91 79032 34057</code></span>
+              </div>
+              <div class="station-route-row">
+                <span class="station-route-label">Assigned Lead:</span>
+                <span class="station-route-val">Ananya <code>+91 83038 31398</code> <span class="badge-tag mini enterprise">Enterprise</span></span>
+              </div>
             </div>
-            <div class="pair-actions">
-              <button type="button" class="btn-pair-dial" title="Outbound: Agent Ritu calls Lead Ananya" onclick="window.dialPair('outbound', 'creator_ritu', 'cand_ananya')">
-                Outbound (Ritu ➔ Ananya)
+
+            <div class="station-actions-row">
+              <button type="button" class="btn-station-dial" id="btn-station-dial-ritu" title="Initiate Outbound Call: Ritu calls Ananya" onclick="window.dialStation('creator_ritu')">
+                📞 Call Ananya (Ritu ➔ Ananya)
               </button>
-              <button type="button" class="btn-pair-dial secondary" title="Inbound: Lead Ananya calls Agent Ritu" onclick="window.dialPair('inbound', 'creator_ritu', 'cand_ananya')">
-                Inbound (Ananya ➔ Ritu)
+              <button type="button" class="btn-station-hangup" id="btn-station-hangup-ritu" style="display: none;" title="End live call for Ritu" onclick="window.hangupStationCall('creator_ritu')">
+                🔴 Hang Up
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Dial Button -->
-      <button type="button" id="call-now-btn" class="call-btn">
-        <div class="btn-spinner" id="btn-spinner"></div>
-        <svg id="btn-phone-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.43-3.9-6.63-6.82l1.97-1.57c.28-.28.37-.67.25-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
-        </svg>
-        <span id="btn-text">Initiate Call</span>
-      </button>
-
-      <!-- Active Call HUD Card -->
-      <div class="active-call-card" id="active-call-card">
-        <div class="active-call-header">
-          <div class="call-state-badge state-initiated" id="call-badge">
-            <span class="status-dot" id="badge-dot"></span>
-            <span id="badge-text">Initiating</span>
-          </div>
-          <div class="call-timer" id="call-timer">00:00</div>
+      <!-- SECTION 2: Custom / Direct Single Call Dialer -->
+      <div class="custom-dialer-card">
+        <div class="custom-dialer-title-row">
+          <span class="custom-dialer-heading">🎯 Custom Single Call (Manual Number or Any Lead)</span>
         </div>
 
-        <div class="active-call-meta">
-          <div class="meta-item">
-            Agent (Leg 1):
-            <span id="meta-agent-number">+91...</span>
+        <!-- Calling Agent Context Card -->
+        <div class="agent-context-card">
+          <div class="agent-context-header">
+            <span class="section-micro-label">CALLING AGENT (CALLER / SENDER)</span>
+            <select id="agent-selector-dropdown" class="creator-quick-select" aria-label="Select Calling Agent">
+              <!-- Dynamically populated with Aman, Ritu -->
+            </select>
           </div>
-          <div class="meta-item">
-            Candidate (Leg 2):
-            <span id="meta-to-number">+91...</span>
+          <div class="agent-context-body">
+            <div class="agent-avatar-large" id="current-agent-avatar">🎧</div>
+            <div class="agent-context-details">
+              <div class="agent-name-row">
+                <strong id="current-agent-name">Aman</strong>
+                <span class="badge-role" id="current-agent-role">Calling Agent</span>
+              </div>
+              <div class="agent-meta-row">
+                <span id="current-agent-phone">📞 +91 83768 22509</span>
+                <span id="current-agent-email">✉️ info@maxpinetechnology.com</span>
+              </div>
+            </div>
           </div>
-          <div class="meta-item">
-            Call ID:
-            <span id="meta-call-id" style="font-size: 0.75rem; cursor: pointer;" title="Click to copy">cs_...</span>
-          </div>
-          <div class="meta-item">
-            Platform:
-            <span id="meta-flow-action">FreJun CRM</span>
+          <div class="agent-bridge-note" id="agent-bridge-note-text">
+            ℹ️ Outbound call: FreJun rings <strong>agent phone</strong> (<span id="agent-ring-target">+91 83768 22509</span>) first. When answered, customer is bridged!
           </div>
         </div>
 
-        <!-- Note regarding Call Flow -->
-        <div class="flow-explainer" id="flow-explainer-banner">
-          <svg viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+        <!-- Candidate (Receiver) Selection -->
+        <div class="form-group" style="margin-top: 6px;">
+          <div class="label-row">
+            <label class="form-label" for="phone-input">
+              <span id="destination-field-label">Destination / Candidate (Receiver)</span>
+            </label>
+            <span id="phone-validation-hint" style="color: var(--text-dim); font-size: 0.75rem;">Select from CRM or enter number</span>
+          </div>
+
+          <!-- Quick Candidate Dropdown Selector -->
+          <div class="candidate-dropdown-wrap">
+            <select id="candidate-selector-dropdown" class="candidate-select" aria-label="Select Candidate">
+              <option value="">-- Choose Existing CRM Candidate / Lead --</option>
+            </select>
+          </div>
+
+          <!-- Direct Phone Number Input -->
+          <div class="phone-input-wrap">
+            <select id="country-code" class="country-select" aria-label="Country Code">
+              <option value="+91" selected>🇮🇳 +91</option>
+              <option value="+1">🇺🇸 +1</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+971">🇦🇪 +971</option>
+              <option value="+65">🇸🇬 +65</option>
+              <option value="">🌐 Custom</option>
+            </select>
+            <input 
+              type="tel" 
+              id="phone-input" 
+              class="phone-input" 
+              placeholder="Enter mobile or landline number"
+              autocomplete="tel"
+            />
+          </div>
+        </div>
+
+        <!-- Live Target Summary Strip -->
+        <div class="dial-summary-strip" id="dial-summary-strip">
+          <span>Routing: <strong id="summary-caller-name">Aman (+91 83768 22509)</strong> ➔ <strong id="summary-receiver-name">Aman Lead (+91 89359 26120)</strong></span>
+          <span class="badge-tag mini" id="summary-direction-badge">Outbound</span>
+        </div>
+
+        <!-- Dedicated Single Call Button with Live Dynamic Text -->
+        <button type="button" id="call-now-btn" class="call-btn">
+          <div class="btn-spinner" id="btn-spinner"></div>
+          <svg id="btn-phone-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.43-3.9-6.63-6.82l1.97-1.57c.28-.28.37-.67.25-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/>
           </svg>
-          <div id="flow-explainer-text">
-            <strong>FreJun Two-Legged Call:</strong> FreJun is ringing the Agent first. When answered, it bridges to the candidate!
+          <span id="btn-text">Initiate Single Call: Aman ➔ Aman Lead (+91 89359 26120)</span>
+        </button>
+      </div>
+
+      <!-- Active & Initiated Calls Section (Multi-Call Live Display) -->
+      <div class="active-calls-section" id="active-calls-section">
+        <div class="active-calls-section-header">
+          <div class="active-calls-title-wrap">
+            <span class="active-pulse-beacon" id="active-beacon-dot"></span>
+            <span class="active-calls-heading">Active & Initiated Calls</span>
+            <span class="active-calls-counter-pill" id="active-calls-count-badge">0 Active</span>
+          </div>
+          <button type="button" class="btn-clear-ended" id="btn-clear-ended-calls" style="display: none;" title="Dismiss finished calls">
+            Clear Finished
+          </button>
+        </div>
+
+        <!-- Dynamic List of Active Call Cards -->
+        <div class="active-calls-list" id="active-calls-list">
+          <div class="empty-active-state" id="empty-active-calls-msg">
+            <span class="empty-active-icon">📡</span>
+            <div class="empty-active-text">
+              <strong>No live calls currently running</strong>
+              <p>When calls are initiated, all live two-legged calls with real-time bridge state, timer, and caller details will appear right here.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -251,6 +277,9 @@
         </button>
         <button type="button" class="tab-btn" data-tab="tab-creators">
           🎧 Calling Agents (<span id="creator-count">0</span>)
+        </button>
+        <button type="button" class="tab-btn" data-tab="tab-live-calls">
+          ⚡ Live Calls (<span id="tab-live-calls-count">0</span>)
         </button>
         <button type="button" class="tab-btn" data-tab="tab-history">
           🕒 Call History (<span id="history-count">0</span>)
@@ -293,6 +322,22 @@
 
         <div class="feed-container" id="creators-container">
           <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Tab: Live Calls -->
+      <div class="tab-pane" id="tab-live-calls">
+        <div class="tab-toolbar">
+          <div class="tab-title-text">
+            <strong>Active & Initiated Calls Monitor</strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Real-time list of all active calls currently in-flight across all agents.</span>
+          </div>
+          <button type="button" class="btn-secondary-action" id="btn-refresh-live-calls">Refresh Live</button>
+        </div>
+        <div class="feed-container" id="tab-live-calls-feed">
+          <div class="empty-state">
+            <p>No active calls currently running.</p>
+          </div>
         </div>
       </div>
 
@@ -387,12 +432,12 @@
         <div class="modal-body">
           <div class="form-group">
             <label class="form-label">Agent Full Name *</label>
-            <input type="text" id="creator-name-input" class="form-control" placeholder="e.g. Priya Sharma" required />
+            <input type="text" id="creator-name-input" class="form-control" placeholder="e.g. Rahul Sharma" required />
           </div>
 
           <div class="form-group">
             <label class="form-label">FreJun User Email *</label>
-            <input type="email" id="creator-email-input" class="form-control" placeholder="e.g. priya@maxpinetechnology.com" required />
+            <input type="email" id="creator-email-input" class="form-control" placeholder="e.g. rahul@maxpinetechnology.com" required />
             <small style="font-size: 0.72rem; color: var(--text-dim);">Agent user registered on your FreJun account</small>
           </div>
 

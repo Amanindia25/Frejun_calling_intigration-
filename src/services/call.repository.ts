@@ -61,7 +61,29 @@ export class InMemoryCallRepository implements ICallRepository {
     }
 
     // Auto-update call state based on event type
-    const existing = this.calls.get(event.callId);
+    let existing = this.calls.get(event.callId);
+    if (!existing && event.callId) {
+      const from = (event.data?.from as string) || (event.data?.from_number as string) || "";
+      const to = (event.data?.to as string) || (event.data?.to_number as string) || "";
+      const direction = (event.data?.direction as string) || "inbound";
+
+      existing = {
+        callId: event.callId,
+        provider: event.provider || "frejun",
+        fromNumber: from,
+        toNumber: to,
+        state: "initiated",
+        record: true,
+        createdAt: event.occurredAt || new Date().toISOString(),
+        metadata: {
+          callDirection: direction,
+          source: "frejun_webhook",
+          ...(event.data || {}),
+        },
+      };
+      this.calls.set(event.callId, existing);
+    }
+
     if (existing) {
       const updates: Partial<CallSessionDto> = {};
       if (event.eventType === "call.initiated") {

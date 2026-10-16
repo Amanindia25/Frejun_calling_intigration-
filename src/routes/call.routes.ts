@@ -27,5 +27,8 @@ export function createCallRoutes(
   // Retrieve single call session
   router.get("/:id", callController.getCall);
 
+  // End / hangup active call session
+  router.post("/:id/hangup", callController.hangupCall);
+
   return router;
 }

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { ITelephonyService } from "../services/interfaces/telephony.service.interface";
 import { ICallRepository } from "../services/interfaces/call.repository.interface";
 import { IDeduplicationService } from "../services/interfaces/deduplication.service.interface";
+import { ICrmRepository } from "../services/crm.repository";
 import { FreJunCallFlowRequest } from "../types/frejun.types";
 import { Logger } from "../utils/logger";
 
@@ -9,16 +10,19 @@ export class WebhookController {
   private telephonyService: ITelephonyService;
   private callRepository: ICallRepository;
   private deduplicationService: IDeduplicationService;
+  private crmRepository?: ICrmRepository;
   private logger = new Logger("WebhookController");
 
   constructor(
     telephonyService: ITelephonyService,
     callRepository: ICallRepository,
-    deduplicationService: IDeduplicationService
+    deduplicationService: IDeduplicationService,
+    crmRepository?: ICrmRepository
   ) {
     this.telephonyService = telephonyService;
     this.callRepository = callRepository;
     this.deduplicationService = deduplicationService;
+    this.crmRepository = crmRepository;
   }
 
   /**
@@ -26,13 +30,13 @@ export class WebhookController {
    * Handles Call Flow request from FreJun Teler when the call connects.
    * Requirement: Must return 200 OK with single JSON Call Flow action within 5 seconds.
    */
-  public handleCallFlow = (req: Request, res: Response, next: NextFunction): void => {
+  public handleCallFlow = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     try {
       const body = req.body as FreJunCallFlowRequest;
       const callId = body.call_id || (req.query.call_id as string);
       const fromNumber = body.from_number || "";
       const toNumber = body.to_number || "";
-      const direction = body.direction || "outbound";
+      const direction = body.direction || "inbound";
 
       this.logger.info("Handling Call Flow request from FreJun Teler", {
         callId,
@@ -50,15 +54,49 @@ export class WebhookController {
         direction,
       });
 
-      // Update call repository with active flow action
+      // Update or create call session in repository
       if (callId) {
-        this.callRepository.update(callId, {
-          state: "answered",
-          flowAction: flow.action,
-          answeredAt: new Date().toISOString(),
-        }).catch((err) => {
-          this.logger.warn("Failed to update call on flow request", { err });
-        });
+        let existing = await this.callRepository.findById(callId);
+        if (!existing) {
+          // Inbound call answering from customer
+          let candidate = null;
+          let creator = null;
+          if (this.crmRepository) {
+            candidate = await this.crmRepository.getCandidateByPhone(fromNumber);
+            creator = await this.crmRepository.getCreatorByPhone(toNumber);
+          }
+
+          await this.callRepository.create({
+            callId,
+            provider: this.telephonyService.providerName,
+            fromNumber,
+            toNumber,
+            state: "answered",
+            record: true,
+            createdAt: new Date().toISOString(),
+            answeredAt: new Date().toISOString(),
+            flowAction: flow.action,
+            metadata: {
+              callDirection: "inbound",
+              source: "frejun_teler_flow",
+              candidate: candidate
+                ? { id: candidate.id, name: candidate.name, phone: candidate.phone, company: candidate.company }
+                : undefined,
+              creator: creator
+                ? { id: creator.id, name: creator.name, phone: creator.phone, email: creator.email }
+                : undefined,
+              callerName: candidate?.name || "Customer Lead",
+              receiverName: creator?.name || "Agent",
+              note: `Inbound Call: ${candidate?.name || fromNumber} (Customer) ➔ ${creator?.name || toNumber} (Agent)`,
+            },
+          });
+        } else {
+          await this.callRepository.update(callId, {
+            state: "answered",
+            flowAction: flow.action,
+            answeredAt: new Date().toISOString(),
+          });
+        }
       }
 
       this.logger.info("Responding with Call Flow JSON", {
@@ -126,12 +164,63 @@ export class WebhookController {
       data: event.data,
     });
 
-    // 4. Persist event and update call state asynchronously
+    // 4. Ensure call session exists in repository (for Inbound calls arriving from outside)
+    if (event.callId) {
+      const existing = await this.callRepository.findById(event.callId);
+      if (!existing) {
+        const from = (event.data?.from as string) || (event.data?.from_number as string) || "";
+        const to = (event.data?.to as string) || (event.data?.to_number as string) || "";
+        const direction = (event.data?.direction as string) || "inbound";
+
+        let candidate = null;
+        let creator = null;
+        if (this.crmRepository) {
+          if (direction === "inbound") {
+            candidate = await this.crmRepository.getCandidateByPhone(from);
+            creator = await this.crmRepository.getCreatorByPhone(to);
+          } else {
+            creator = await this.crmRepository.getCreatorByPhone(from);
+            candidate = await this.crmRepository.getCandidateByPhone(to);
+          }
+        }
+
+        await this.callRepository.create({
+          callId: event.callId,
+          provider: event.provider || "frejun",
+          fromNumber: from,
+          toNumber: to,
+          state: event.eventType === "call.completed" ? "completed" : event.eventType === "call.answered" ? "answered" : "initiated",
+          record: true,
+          createdAt: event.occurredAt || new Date().toISOString(),
+          answeredAt: (event.data?.answered_at as string) || (event.eventType === "call.answered" ? event.occurredAt : undefined),
+          endedAt: (event.data?.ended_at as string) || (event.eventType === "call.completed" ? event.occurredAt : undefined),
+          durationSeconds: typeof event.data?.duration_seconds === "number" ? event.data.duration_seconds : undefined,
+          metadata: {
+            callDirection: direction,
+            source: "frejun_webhook",
+            candidate: candidate
+              ? { id: candidate.id, name: candidate.name, phone: candidate.phone, company: candidate.company }
+              : undefined,
+            creator: creator
+              ? { id: creator.id, name: creator.name, phone: creator.phone, email: creator.email }
+              : undefined,
+            callerName: direction === "inbound" ? (candidate?.name || "Customer Lead") : (creator?.name || "Agent"),
+            receiverName: direction === "inbound" ? (creator?.name || "Agent") : (candidate?.name || "Customer Lead"),
+            note:
+              direction === "inbound"
+                ? `Inbound Call: ${candidate?.name || from} (Customer) ➔ ${creator?.name || to} (Agent)`
+                : `Outbound Call: ${creator?.name || from} (Agent) ➔ ${candidate?.name || to} (Customer)`,
+          },
+        });
+      }
+    }
+
+    // 5. Persist event and update call state asynchronously
     this.callRepository.saveEvent(event).catch((err) => {
       this.logger.error("Failed to persist webhook event in repository", err, { eventId: event.eventId });
     });
 
-    // 5. Acknowledge immediately within 5 seconds with 200 OK
+    // 6. Acknowledge immediately within 5 seconds with 200 OK
     res.status(200).json({ status: "acknowledged", eventId: event.eventId });
   };
 }

@@ -72,9 +72,7 @@ export class CallController {
       if (input.candidateId && this.crmRepository) {
         const candidate = await this.crmRepository.getCandidateById(input.candidateId);
         if (candidate) {
-          if (!input.toNumber || metadata.callDirection !== "inbound") {
-            targetNumber = candidate.phone;
-          }
+          targetNumber = candidate.phone;
           metadata.candidate = {
             id: candidate.id,
             name: candidate.name,
@@ -83,6 +81,7 @@ export class CallController {
           };
         }
       }
+      metadata.callDirection = "outbound";
 
       // Resolve Creator / Agent context if creatorId provided or fetch default
       if (this.crmRepository) {
@@ -103,6 +102,50 @@ export class CallController {
             role: creator.role,
           };
         }
+      }
+
+      // STRICT CRM PAIRING ENFORCEMENT:
+      // Pair 1: Aman (+918376822509) ⇄ Aman Lead (+918935926120)
+      // Pair 2: Ritu (+917903234057) ⇄ Ananya (+918303831398)
+      const cleanCreator = (creatorNumber || "").replace(/\D/g, "").slice(-10);
+      const cleanTarget = (targetNumber || "").replace(/\D/g, "").slice(-10);
+
+      // Aman can NEVER call Ananya (and Ananya can never call Aman)
+      if (
+        (cleanCreator === "8376822509" && cleanTarget === "8303831398") ||
+        (cleanCreator === "8303831398" && cleanTarget === "8376822509")
+      ) {
+        this.logger.warn("Strict pairing violation blocked: Aman cannot call Ananya", {
+          creatorNumber,
+          targetNumber,
+        });
+        res.status(400).json({
+          success: false,
+          error: {
+            code: "STRICT_PAIRING_VIOLATION",
+            message: "Strict Pairing Rule: Aman (+91 8376822509) is paired exclusively with Aman Lead (+91 8935926120) and can NEVER call Ananya.",
+          },
+        });
+        return;
+      }
+
+      // Ritu can NEVER call Aman Lead (and Aman Lead can never call Ritu)
+      if (
+        (cleanCreator === "7903234057" && cleanTarget === "8935926120") ||
+        (cleanCreator === "8935926120" && cleanTarget === "7903234057")
+      ) {
+        this.logger.warn("Strict pairing violation blocked: Ritu cannot call Aman Lead", {
+          creatorNumber,
+          targetNumber,
+        });
+        res.status(400).json({
+          success: false,
+          error: {
+            code: "STRICT_PAIRING_VIOLATION",
+            message: "Strict Pairing Rule: Ritu (+91 7903234057) is paired exclusively with Ananya (+91 8303831398) and can NEVER call Aman Lead.",
+          },
+        });
+        return;
       }
 
       this.logger.info("Received outbound call request", {
@@ -236,4 +279,64 @@ export class CallController {
       next(error);
     }
   };
+
+  /**
+   * POST /api/calls/:id/hangup
+   * Ends an active call session
+   */
+  public hangupCall = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const callId = (Array.isArray(req.params.id) ? req.params.id[0] : req.params.id) as string;
+      const session = await this.callRepository.findById(callId);
+      if (!session) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: "CALL_NOT_FOUND",
+            message: `Call with ID '${callId}' not found.`,
+          },
+        } as ApiResponse);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const startTime = session.answeredAt || session.createdAt;
+      const durationSeconds = startTime
+        ? Math.max(1, Math.round((Date.now() - new Date(startTime).getTime()) / 1000))
+        : 0;
+
+      const updated = await this.callRepository.update(callId, {
+        state: "completed",
+        endedAt: now,
+        durationSeconds,
+        reason: "Call ended by user",
+      });
+
+      // Clear cooldown in deduplication service
+      this.deduplicationService.clearCallCooldown(session.toNumber);
+
+      // Save call.completed event
+      await this.callRepository.saveEvent({
+        eventId: `evt_hangup_${Date.now()}`,
+        eventType: "call.completed",
+        callId,
+        provider: session.provider,
+        occurredAt: now,
+        data: {
+          duration_seconds: durationSeconds,
+          ended_at: now,
+          reason: "User ended call from CRM UI",
+        },
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Call ended successfully",
+        data: updated,
+      } as ApiResponse);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+

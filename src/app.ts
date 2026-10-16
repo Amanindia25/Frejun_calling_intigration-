@@ -86,7 +86,8 @@ export class App {
     const webhookController = new WebhookController(
       this.telephonyService,
       this.callRepository,
-      this.deduplicationService
+      this.deduplicationService,
+      this.crmRepository
     );
     const crmController = new CrmController(this.crmRepository);
 

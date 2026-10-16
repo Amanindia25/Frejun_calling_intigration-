@@ -17,6 +17,7 @@ export interface ICrmRepository {
   getCandidates(search?: string): Promise<ICandidate[]>;
   getCandidateById(id: string): Promise<ICandidate | null>;
   getCandidateByPhone(phone: string): Promise<ICandidate | null>;
+  getCreatorByPhone(phone: string): Promise<ICreator | null>;
   addCandidate(dto: CreateCandidateDto): Promise<ICandidate>;
   deleteCandidate(id: string): Promise<boolean>;
   recordCallToCandidate(candidateIdOrPhone: string): Promise<void>;
@@ -31,24 +32,15 @@ export class InMemoryCrmRepository implements ICrmRepository {
   }
 
   private seedInitialData(): void {
-    // 1. Calling Agents (Creators / Senders) - Exactly 3
+    // 1. Calling Agents (Creators / Senders) - Exactly 2 (Aman, Ritu)
     const initialCreators: ICreator[] = [
-      {
-        id: "creator_ritik",
-        name: "Ritik",
-        email: "info@maxpinetechnology.com",
-        phone: "+919650790587",
-        role: "Calling Agent (Target: Priya)",
-        isDefault: true,
-        createdAt: new Date().toISOString(),
-      },
       {
         id: "creator_aman",
         name: "Aman",
         email: "info@maxpinetechnology.com",
         phone: "+918376822509",
-        role: "Calling Agent (Target: Ayush)",
-        isDefault: false,
+        role: "Calling Agent (Target: Aman Lead)",
+        isDefault: true,
         createdAt: new Date().toISOString(),
       },
       {
@@ -66,28 +58,16 @@ export class InMemoryCrmRepository implements ICrmRepository {
       this.creators.set(c.id, c);
     }
 
-    // 2. Leads / Customers (Candidates / Receivers) - Exactly 3 (Priya, Ayush, Ananya)
+    // 2. Leads / Customers (Candidates / Receivers) - Exactly 2 (Aman Lead, Ananya)
     const initialCandidates: ICandidate[] = [
       {
-        id: "cand_priya",
-        name: "Priya",
-        phone: "+918445715131",
-        email: "priya@customer.com",
-        company: "Lead (Paired with Ritik)",
-        tags: ["Paired with Ritik", "Hot Lead"],
-        notes: "When Ritik calls, FreJun rings Ritik (+919650790587) and bridges to Priya.",
-        totalCalls: 0,
-        lastCalledAt: null,
-        createdAt: new Date().toISOString(),
-      },
-      {
         id: "cand_ayush",
-        name: "Ayush",
-        phone: "+919135831645",
-        email: "ayush@customer.com",
+        name: "Aman Lead",
+        phone: "+918935926120",
+        email: "amanlead@customer.com",
         company: "Lead (Paired with Aman)",
         tags: ["Paired with Aman", "Priority Lead"],
-        notes: "When Aman calls, FreJun rings Aman (+918376822509) and bridges to Ayush.",
+        notes: "When Aman calls, FreJun rings Aman (+918376822509) and bridges to Aman Lead.",
         totalCalls: 0,
         lastCalledAt: null,
         createdAt: new Date().toISOString(),
@@ -195,9 +175,29 @@ export class InMemoryCrmRepository implements ICrmRepository {
   }
 
   public async getCandidateByPhone(phone: string): Promise<ICandidate | null> {
+    if (!phone) return null;
     const norm = normalizePhoneNumber(phone);
+    const clean = phone.replace(/\D/g, "").slice(-10);
     for (const c of this.candidates.values()) {
       if (normalizePhoneNumber(c.phone) === norm) {
+        return c;
+      }
+      if (clean && c.phone.replace(/\D/g, "").slice(-10) === clean) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  public async getCreatorByPhone(phone: string): Promise<ICreator | null> {
+    if (!phone) return null;
+    const norm = normalizePhoneNumber(phone);
+    const clean = phone.replace(/\D/g, "").slice(-10);
+    for (const c of this.creators.values()) {
+      if (normalizePhoneNumber(c.phone) === norm) {
+        return c;
+      }
+      if (clean && c.phone.replace(/\D/g, "").slice(-10) === clean) {
         return c;
       }
     }
