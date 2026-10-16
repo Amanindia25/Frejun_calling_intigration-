@@ -52,6 +52,7 @@ export interface CallFlowRequestDto {
   fromNumber: string;
   toNumber: string;
   direction: "inbound" | "outbound";
+  dialTarget?: string;
 }
 
 /**

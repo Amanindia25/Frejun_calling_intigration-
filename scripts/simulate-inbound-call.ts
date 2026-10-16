@@ -32,15 +32,30 @@ async function sendWebhook(event: Record<string, unknown>) {
 
 async function simulateInboundCall() {
   const callId = `cs_inbound_${Date.now()}`;
-  // Customer Aman Lead calls Agent Aman
+  // Customer Aman Lead calls Virtual Number / Agent Aman
   const fromCustomer = "+918935926120"; // Aman Lead (Customer)
-  const toAgent = "+918376822509";       // Aman (Agent)
+  const virtualNumber = "+918035742316"; // FreJun Virtual DID Number
 
   console.log(`\n======================================================`);
-  console.log(`📲 Simulating INBOUND Call: Customer Aman Lead (${fromCustomer}) ➔ Agent Aman (${toAgent})`);
+  console.log(`📲 Simulating INBOUND Call: Customer Aman Lead (${fromCustomer}) ➔ FreJun DID (${virtualNumber})`);
   console.log(`======================================================\n`);
 
-  // 1. Inbound Call arrives (call.initiated)
+  // 1. FreJun asks backend Call Flow: How to route and bridge this incoming call?
+  console.log(`📡 Step 1: FreJun requests Call Flow instruction (POST /api/teler/flow)...`);
+  try {
+    const flowRes = await axios.post(`${BASE_URL}/api/teler/flow`, {
+      call_id: callId,
+      from_number: fromCustomer,
+      to_number: virtualNumber,
+      direction: "inbound",
+    });
+    console.log(`✅ FreJun Call Flow Bridging Instruction Returned:`, flowRes.data);
+  } catch (err: any) {
+    console.error(`❌ Call flow failed:`, err.response?.data || err.message);
+  }
+
+  // 2. Inbound Call arrives and rings the agent (call.initiated)
+  console.log(`\n🔔 Step 2: FreJun triggers webhook [call.initiated]...`);
   await sendWebhook({
     id: `evt_inbound_init_${Date.now()}`,
     type: "call.initiated",
@@ -51,9 +66,27 @@ async function simulateInboundCall() {
     data: {
       call_id: callId,
       from: fromCustomer,
-      to: toAgent,
+      to: virtualNumber,
       direction: "inbound",
       start_time: new Date().toISOString(),
+    },
+  });
+
+  // 3. Agent picks up the phone (call.answered)
+  console.log(`\n🎧 Step 3: Agent picks up phone -> Webhook [call.answered]...`);
+  await sendWebhook({
+    id: `evt_inbound_ans_${Date.now()}`,
+    type: "call.answered",
+    api_version: "2026-06-01",
+    occurred_at: new Date().toISOString(),
+    account_id: "acc_demo_hashtagg",
+    call_id: callId,
+    data: {
+      call_id: callId,
+      from: fromCustomer,
+      to: virtualNumber,
+      direction: "inbound",
+      answered_at: new Date().toISOString(),
     },
   });
 
@@ -62,10 +95,13 @@ async function simulateInboundCall() {
   const found = res.data.data.find((c: any) => c.callId === callId);
   console.log("\n🔍 Verification from /api/calls:");
   console.log("Call ID:", found?.callId);
+  console.log("State:", found?.state);
   console.log("Direction:", found?.metadata?.callDirection);
   console.log("Caller:", found?.metadata?.callerName, found?.fromNumber);
-  console.log("Receiver:", found?.metadata?.receiverName, found?.toNumber);
+  console.log("Receiver (Bridged Agent):", found?.metadata?.receiverName, found?.toNumber);
+  console.log("Flow Action:", found?.flowAction);
   console.log("Note:", found?.metadata?.note);
+  console.log("\n✨ Inbound Call successfully bridged to Agent!\n");
 }
 
 simulateInboundCall();

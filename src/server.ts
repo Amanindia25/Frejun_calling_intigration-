@@ -2,6 +2,8 @@ import { AppConfig } from "./config/app.config";
 import { App } from "./app";
 import { logger } from "./utils/logger";
 
+// Reload configuration on change
+
 function bootstrap() {
   const config = AppConfig.get();
   const validation = AppConfig.validate(config);

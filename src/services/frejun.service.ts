@@ -372,8 +372,18 @@ export class FreJunService implements ITelephonyService {
     switch (action) {
       case "dial": {
         // Two-way audio bridge: originates an outbound leg to an agent or bridge target
-        const targetNumber = this.config.frejun.dialBridgeTarget || request.fromNumber;
-        rawPayload = CallFlow.dial(targetNumber) as unknown as Record<string, unknown>;
+        let targetNumber = request.dialTarget || this.config.frejun.dialBridgeTarget;
+        if (!targetNumber) {
+          // For inbound calls, dial target should be the destination/agent; for outbound it is fromNumber
+          targetNumber = request.direction === "inbound" ? request.toNumber : request.fromNumber;
+        }
+
+        rawPayload = CallFlow.dial(targetNumber, {
+          timeout: 30,
+          record: this.config.callSettings.defaultRecord,
+          ringback: "passthrough",
+        }) as unknown as Record<string, unknown>;
+
         return {
           action: "dial",
           dialTo: targetNumber,

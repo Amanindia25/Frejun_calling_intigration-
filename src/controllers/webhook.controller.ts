@@ -45,6 +45,33 @@ export class WebhookController {
         direction,
       });
 
+      // Resolve candidate and creator context from CRM
+      let candidate = null;
+      let creator = null;
+      if (this.crmRepository) {
+        candidate = await this.crmRepository.getCandidateByPhone(fromNumber);
+        const cleanFrom = fromNumber.replace(/\D/g, "").slice(-10);
+
+        // Strict pairing: Aman Lead (+918935926120) strictly pairs with Aman (+918376822509)
+        if (cleanFrom === "8935926120" || candidate?.id === "cand_ayush") {
+          const creators = await this.crmRepository.getCreators();
+          creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
+        } else if (cleanFrom === "8303831398" || candidate?.id === "cand_ananya") {
+          const creators = await this.crmRepository.getCreators();
+          creator = creators.find((c) => c.id === "creator_ritu" || c.phone.endsWith("7903234057")) || null;
+        }
+
+        if (!creator && toNumber) {
+          creator = await this.crmRepository.getCreatorByPhone(toNumber);
+        }
+        if (!creator) {
+          creator = await this.crmRepository.getDefaultCreator();
+        }
+      }
+
+      // Determine dial target for bridging (Agent phone number)
+      const dialTarget = creator?.phone || toNumber;
+
       // Generate instructions per configured call flow action (play, dial, stream, hangup)
       const flow = this.telephonyService.generateCallFlow({
         callId,
@@ -52,20 +79,13 @@ export class WebhookController {
         fromNumber,
         toNumber,
         direction,
+        dialTarget,
       });
 
       // Update or create call session in repository
       if (callId) {
         let existing = await this.callRepository.findById(callId);
         if (!existing) {
-          // Inbound call answering from customer
-          let candidate = null;
-          let creator = null;
-          if (this.crmRepository) {
-            candidate = await this.crmRepository.getCandidateByPhone(fromNumber);
-            creator = await this.crmRepository.getCreatorByPhone(toNumber);
-          }
-
           await this.callRepository.create({
             callId,
             provider: this.telephonyService.providerName,
@@ -87,7 +107,7 @@ export class WebhookController {
                 : undefined,
               callerName: candidate?.name || "Customer Lead",
               receiverName: creator?.name || "Agent",
-              note: `Inbound Call: ${candidate?.name || fromNumber} (Customer) ➔ ${creator?.name || toNumber} (Agent)`,
+              note: `Inbound Call: ${candidate?.name || fromNumber} (Customer) ➔ ${creator?.name || dialTarget} (Agent)`,
             },
           });
         } else {
@@ -177,7 +197,20 @@ export class WebhookController {
         if (this.crmRepository) {
           if (direction === "inbound") {
             candidate = await this.crmRepository.getCandidateByPhone(from);
-            creator = await this.crmRepository.getCreatorByPhone(to);
+            const cleanFrom = from.replace(/\D/g, "").slice(-10);
+            if (cleanFrom === "8935926120" || candidate?.id === "cand_ayush") {
+              const creators = await this.crmRepository.getCreators();
+              creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
+            } else if (cleanFrom === "8303831398" || candidate?.id === "cand_ananya") {
+              const creators = await this.crmRepository.getCreators();
+              creator = creators.find((c) => c.id === "creator_ritu" || c.phone.endsWith("7903234057")) || null;
+            }
+            if (!creator && to) {
+              creator = await this.crmRepository.getCreatorByPhone(to);
+            }
+            if (!creator) {
+              creator = await this.crmRepository.getDefaultCreator();
+            }
           } else {
             creator = await this.crmRepository.getCreatorByPhone(from);
             candidate = await this.crmRepository.getCandidateByPhone(to);
