@@ -97,15 +97,24 @@ export class App {
     // Outbound Calls API
     this.app.use("/api/calls", createCallRoutes(callController, this.deduplicationService));
 
+    // Initial and background periodic sync from FreJun Integrations API (every 8 seconds)
+    callController.syncCallsInternal().catch(() => {});
+    setInterval(() => {
+      callController.syncCallsInternal().catch(() => {});
+    }, 8000);
+
     // Multi-Creator & Multi-Candidate CRM API
     this.app.use("/api/crm", createCrmRoutes(crmController));
 
     // FreJun Call Flow and Webhook endpoints under /api/teler
     this.app.use("/api/teler", createWebhookRoutes(webhookController));
 
-    // Aliases for quickstart default paths (/flow and /status)
+    // Aliases for quickstart default paths (/flow, /status, /webhook)
     this.app.post("/flow", webhookController.handleCallFlow);
+    this.app.get("/flow", webhookController.handleCallFlow);
     this.app.post("/status", webhookController.handleStatusWebhook);
+    this.app.post("/webhook", webhookController.handleStatusWebhook);
+    this.app.post("/api/webhook", webhookController.handleStatusWebhook);
 
     // SPA fallback to index.html for root path
     this.app.get("/", (_req, res) => {

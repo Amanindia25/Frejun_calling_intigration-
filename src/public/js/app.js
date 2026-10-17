@@ -251,6 +251,28 @@ document.addEventListener("DOMContentLoaded", () => {
       btnRefreshHistory.addEventListener("click", fetchCallHistory);
     }
 
+    // Sync FreJun button
+    const btnSyncFrejun = document.getElementById("btn-sync-frejun");
+    if (btnSyncFrejun) {
+      btnSyncFrejun.addEventListener("click", async () => {
+        btnSyncFrejun.disabled = true;
+        btnSyncFrejun.textContent = "Syncing...";
+        showToast("Syncing calls and recordings from FreJun...", "info");
+        try {
+          await fetch("/api/calls/sync", { method: "POST" });
+          await fetchCallHistory();
+          await fetchEvents();
+          await syncActiveCalls();
+          showToast("FreJun calls synchronized successfully!", "success");
+        } catch {
+          showToast("Failed to sync calls", "error");
+        } finally {
+          btnSyncFrejun.disabled = false;
+          btnSyncFrejun.textContent = "🔄 Sync FreJun";
+        }
+      });
+    }
+
     // Clear finished calls button
     if (btnClearEndedCalls) {
       btnClearEndedCalls.addEventListener("click", () => window.clearEndedCalls());
@@ -1495,9 +1517,16 @@ document.addEventListener("DOMContentLoaded", () => {
               <div>
                 <strong>${escapeHtml(fromName)}</strong> ➔ <strong>${escapeHtml(toName)}</strong>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-dim);">
-                Call ID: <code class="code-pill">${escapeHtml(c.callId)}</code> • Duration: ${dur}
+              <div style="font-size: 0.75rem; color: var(--text-dim); display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>Call ID: <code class="code-pill">${escapeHtml(c.callId)}</code></span>
+                <span>• Duration: ${dur}</span>
+                ${c.recordingUrl ? `<span>• <a href="${escapeHtml(c.recordingUrl)}" target="_blank" style="color: var(--primary); text-decoration: underline; font-weight: 600;">📥 Recording</a></span>` : ""}
               </div>
+              ${c.recordingUrl ? `
+                <div style="margin-top: 6px; width: 100%;">
+                  <audio controls src="${escapeHtml(c.recordingUrl)}" preload="none" style="height: 28px; width: 100%; outline: none; border-radius: 4px;"></audio>
+                </div>
+              ` : ""}
             </div>
           </div>
         `;

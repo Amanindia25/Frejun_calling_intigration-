@@ -21,6 +21,10 @@ export function createCallRoutes(
   // Event stream / list of lifecycle events for UI live updates
   router.get("/events", callController.listEvents);
 
+  // Synchronize calls directly from FreJun Integrations API
+  router.get("/sync", callController.syncCalls);
+  router.post("/sync", callController.syncCalls);
+
   // List recent calls
   router.get("/", callController.listCalls);
 

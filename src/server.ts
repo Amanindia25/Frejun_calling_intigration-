@@ -37,6 +37,16 @@ function bootstrap() {
     }
   });
 
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      logger.error(`❌ Port ${config.port} is already in use by another process!`);
+      logger.error(`   Please change PORT in your .env (e.g. PORT=3001) or terminate the conflicting process.`);
+    } else {
+      logger.error(`❌ Server error: ${err.message}`);
+    }
+    process.exit(1);
+  });
+
   // Graceful shutdown handling
   const shutdown = (signal: string) => {
     logger.info(`Received ${signal}. Shutting down gracefully...`);

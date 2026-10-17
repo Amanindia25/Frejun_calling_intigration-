@@ -32,10 +32,10 @@ export class WebhookController {
    */
   public handleCallFlow = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     try {
-      const body = req.body as FreJunCallFlowRequest;
-      const callId = body.call_id || (req.query.call_id as string);
-      const fromNumber = body.from_number || "";
-      const toNumber = body.to_number || "";
+      const body = (req.body || {}) as any;
+      const callId = body.call_id || (req.query.call_id as string) || `cs_inbound_${Date.now()}`;
+      const fromNumber = body.from_number || body.from || (req.query.from as string) || (req.query.from_number as string) || "";
+      const toNumber = body.to_number || body.to || (req.query.to as string) || (req.query.to_number as string) || "";
       const direction = body.direction || "inbound";
 
       this.logger.info("Handling Call Flow request from FreJun Teler", {
@@ -45,34 +45,54 @@ export class WebhookController {
         direction,
       });
 
-      // Resolve candidate and creator context from CRM
+      // 1. Resolve Lead and Agent Context from CRM
       let candidate = null;
       let creator = null;
+      const cleanFrom = fromNumber.replace(/\D/g, "").slice(-10);
+
       if (this.crmRepository) {
         candidate = await this.crmRepository.getCandidateByPhone(fromNumber);
-        const cleanFrom = fromNumber.replace(/\D/g, "").slice(-10);
 
-        // Strict pairing: Aman Lead (+918935926120) strictly pairs with Aman (+918376822509)
+        // Strict Lead-to-Agent Routing:
+        // Case 1: Aman Lead (+918935926120) strictly pairs with Aman (+918376822509)
         if (cleanFrom === "8935926120" || candidate?.id === "cand_ayush") {
           const creators = await this.crmRepository.getCreators();
           creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
-        } else if (cleanFrom === "8303831398" || candidate?.id === "cand_ananya") {
+        }
+        // Case 2: Ananya Lead (+918303831398) strictly pairs with Ritu (+917903234057)
+        else if (cleanFrom === "8303831398" || candidate?.id === "cand_ananya") {
           const creators = await this.crmRepository.getCreators();
           creator = creators.find((c) => c.id === "creator_ritu" || c.phone.endsWith("7903234057")) || null;
         }
-
-        if (!creator && toNumber) {
-          creator = await this.crmRepository.getCreatorByPhone(toNumber);
+        // Case 3: If candidate exists in CRM with specific notes/tags
+        else if (candidate) {
+          const creators = await this.crmRepository.getCreators();
+          if (candidate.notes?.includes("Ritu") || candidate.tags?.includes("Paired with Ritu")) {
+            creator = creators.find((c) => c.id === "creator_ritu" || c.phone.endsWith("7903234057")) || null;
+          } else {
+            creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
+          }
         }
+
+        // Case 4: Unknown number ➔ Fall back to Default Agent
         if (!creator) {
           creator = await this.crmRepository.getDefaultCreator();
         }
       }
 
-      // Determine dial target for bridging (Agent phone number)
-      const dialTarget = creator?.phone || toNumber;
+      // Determine dial target: strictly the assigned agent's phone number
+      const defaultAgent = (await this.crmRepository?.getDefaultCreator()) || (await this.crmRepository?.getCreators())?.[0];
+      const dialTarget = creator?.phone || defaultAgent?.phone || process.env.FREJUN_DIAL_BRIDGE_TARGET || "+918376822509";
 
-      // Generate instructions per configured call flow action (play, dial, stream, hangup)
+      this.logger.info("Inbound Call Routing Resolved", {
+        callId,
+        caller: fromNumber,
+        candidateName: candidate?.name || "Unknown Caller",
+        assignedAgent: creator?.name || defaultAgent?.name || "Aman",
+        dialTarget,
+      });
+
+      // Generate instructions per configured call flow action (dial)
       const flow = this.telephonyService.generateCallFlow({
         callId,
         accountId: body.account_id,
@@ -85,6 +105,12 @@ export class WebhookController {
       // Update or create call session in repository
       if (callId) {
         let existing = await this.callRepository.findById(callId);
+        const callerName = candidate?.name || (cleanFrom ? `Lead (${fromNumber})` : "Customer Lead");
+        const receiverName = creator?.name || defaultAgent?.name || "Aman";
+        const note = candidate
+          ? `Inbound Call: ${candidate.name} (${fromNumber}) strictly routed to ${receiverName} (${dialTarget})`
+          : `Inbound Call: Unknown Caller (${fromNumber}) routed to Default Agent ${receiverName} (${dialTarget})`;
+
         if (!existing) {
           await this.callRepository.create({
             callId,
@@ -105,9 +131,9 @@ export class WebhookController {
               creator: creator
                 ? { id: creator.id, name: creator.name, phone: creator.phone, email: creator.email }
                 : undefined,
-              callerName: candidate?.name || "Customer Lead",
-              receiverName: creator?.name || "Agent",
-              note: `Inbound Call: ${candidate?.name || fromNumber} (Customer) ➔ ${creator?.name || dialTarget} (Agent)`,
+              callerName,
+              receiverName,
+              note,
             },
           });
         } else {
@@ -115,6 +141,12 @@ export class WebhookController {
             state: "answered",
             flowAction: flow.action,
             answeredAt: new Date().toISOString(),
+            metadata: {
+              ...(existing.metadata || {}),
+              callerName,
+              receiverName,
+              note,
+            },
           });
         }
       }
@@ -198,16 +230,20 @@ export class WebhookController {
           if (direction === "inbound") {
             candidate = await this.crmRepository.getCandidateByPhone(from);
             const cleanFrom = from.replace(/\D/g, "").slice(-10);
+
             if (cleanFrom === "8935926120" || candidate?.id === "cand_ayush") {
               const creators = await this.crmRepository.getCreators();
               creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
             } else if (cleanFrom === "8303831398" || candidate?.id === "cand_ananya") {
               const creators = await this.crmRepository.getCreators();
               creator = creators.find((c) => c.id === "creator_ritu" || c.phone.endsWith("7903234057")) || null;
+            } else if (candidate) {
+              const creators = await this.crmRepository.getCreators();
+              creator = candidate.notes?.includes("Ritu")
+                ? creators.find((c) => c.id === "creator_ritu" || c.phone.endsWith("7903234057")) || null
+                : creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
             }
-            if (!creator && to) {
-              creator = await this.crmRepository.getCreatorByPhone(to);
-            }
+
             if (!creator) {
               creator = await this.crmRepository.getDefaultCreator();
             }
@@ -217,16 +253,32 @@ export class WebhookController {
           }
         }
 
+        const defaultAgent = (await this.crmRepository?.getDefaultCreator()) || (await this.crmRepository?.getCreators())?.[0];
+        const assignedAgent = creator || defaultAgent;
+        const callerName = direction === "inbound" ? (candidate?.name || `Lead (${from})`) : (assignedAgent?.name || "Agent");
+        const receiverName = direction === "inbound" ? (assignedAgent?.name || "Agent") : (candidate?.name || `Customer (${to})`);
+        const dialTarget = assignedAgent?.phone || process.env.FREJUN_DIAL_BRIDGE_TARGET || "+918376822509";
+
+        let initialState: "initiated" | "ringing" | "answered" | "completed" | "failed" = "initiated";
+        const rawStatus = ((event.data?.status as string) || (event.data?.call_status as string) || "").toLowerCase();
+        if (event.eventType === "call.completed" || rawStatus === "completed" || rawStatus === "ended") {
+          initialState = "completed";
+        } else if (event.eventType === "call.answered" || rawStatus === "answered") {
+          initialState = "answered";
+        } else if (event.eventType === "call.failed" || rawStatus === "failed") {
+          initialState = "failed";
+        }
+
         await this.callRepository.create({
           callId: event.callId,
           provider: event.provider || "frejun",
           fromNumber: from,
           toNumber: to,
-          state: event.eventType === "call.completed" ? "completed" : event.eventType === "call.answered" ? "answered" : "initiated",
+          state: initialState,
           record: true,
           createdAt: event.occurredAt || new Date().toISOString(),
-          answeredAt: (event.data?.answered_at as string) || (event.eventType === "call.answered" ? event.occurredAt : undefined),
-          endedAt: (event.data?.ended_at as string) || (event.eventType === "call.completed" ? event.occurredAt : undefined),
+          answeredAt: (event.data?.answered_at as string) || (initialState === "answered" ? event.occurredAt : undefined),
+          endedAt: (event.data?.ended_at as string) || (initialState === "completed" ? event.occurredAt : undefined),
           durationSeconds: typeof event.data?.duration_seconds === "number" ? event.data.duration_seconds : undefined,
           metadata: {
             callDirection: direction,
@@ -234,15 +286,16 @@ export class WebhookController {
             candidate: candidate
               ? { id: candidate.id, name: candidate.name, phone: candidate.phone, company: candidate.company }
               : undefined,
-            creator: creator
-              ? { id: creator.id, name: creator.name, phone: creator.phone, email: creator.email }
+            creator: assignedAgent
+              ? { id: assignedAgent.id, name: assignedAgent.name, phone: assignedAgent.phone, email: assignedAgent.email }
               : undefined,
-            callerName: direction === "inbound" ? (candidate?.name || "Customer Lead") : (creator?.name || "Agent"),
-            receiverName: direction === "inbound" ? (creator?.name || "Agent") : (candidate?.name || "Customer Lead"),
+            callerName,
+            receiverName,
+            dialTarget,
             note:
               direction === "inbound"
-                ? `Inbound Call: ${candidate?.name || from} (Customer) ➔ ${creator?.name || to} (Agent)`
-                : `Outbound Call: ${creator?.name || from} (Agent) ➔ ${candidate?.name || to} (Customer)`,
+                ? `Inbound Call: ${callerName} (${from}) strictly routed to ${receiverName} (${dialTarget})`
+                : `Outbound Call: ${callerName} (${from}) ➔ ${receiverName} (${to})`,
           },
         });
       }

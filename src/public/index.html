@@ -345,7 +345,10 @@
       <div class="tab-pane" id="tab-history">
         <div class="tab-toolbar">
           <span style="font-size: 0.85rem; color: var(--text-muted);">Real-time Telephony Call Records & Durations</span>
-          <button type="button" class="btn-secondary-action" id="btn-refresh-history">Refresh</button>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn-secondary-action" id="btn-sync-frejun" style="background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.4); color: #22c55e; font-weight: 600;">🔄 Sync FreJun</button>
+            <button type="button" class="btn-secondary-action" id="btn-refresh-history">Refresh</button>
+          </div>
         </div>
         <div class="feed-container" id="history-feed">
           <div class="empty-state">

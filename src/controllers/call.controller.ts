@@ -4,6 +4,7 @@ import { ITelephonyService } from "../services/interfaces/telephony.service.inte
 import { ICallRepository } from "../services/interfaces/call.repository.interface";
 import { IDeduplicationService } from "../services/interfaces/deduplication.service.interface";
 import { ApiResponse } from "../types/api.types";
+import { CallSessionDto } from "../types/telephony.types";
 import { isValidE164, normalizePhoneNumber } from "../utils/phone.utils";
 import { Logger } from "../utils/logger";
 
@@ -236,12 +237,180 @@ export class CallController {
   };
 
   /**
+   * Internal helper to sync call records from FreJun API
+   */
+  public syncCallsInternal = async (): Promise<CallSessionDto[]> => {
+    if (!this.telephonyService.fetchCallLogs) {
+      return this.callRepository.list(50);
+    }
+
+    try {
+      const logs = await this.telephonyService.fetchCallLogs();
+      if (!logs || !Array.isArray(logs) || logs.length === 0) {
+        return this.callRepository.list(50);
+      }
+
+      for (const log of logs) {
+        const callId = log.call_id || `cs_frejun_${log.id}`;
+        if (!callId) continue;
+
+        const isIncoming = log.call_type === "incoming";
+        const candidatePhone = log.candidate_number || "";
+        const creatorPhone = log.creator_number || "";
+        const virtualPhone = log.virtual_number || "";
+
+        const fromNumber = isIncoming ? candidatePhone : (creatorPhone || virtualPhone);
+        const toNumber = isIncoming ? (creatorPhone || virtualPhone) : candidatePhone;
+
+        // Resolve CRM context
+        let candidate = null;
+        let creator = null;
+
+        if (this.crmRepository) {
+          if (candidatePhone) {
+            candidate = await this.crmRepository.getCandidateByPhone(candidatePhone);
+          }
+          if (creatorPhone) {
+            creator = await this.crmRepository.getCreatorByPhone(creatorPhone);
+          }
+          if (!creator) {
+            creator = await this.crmRepository.getDefaultCreator();
+          }
+        }
+
+        const callerName = isIncoming
+          ? (candidate?.name || `Customer (${candidatePhone})`)
+          : (creator?.name || "Agent");
+        const receiverName = isIncoming
+          ? (creator?.name || "Agent")
+          : (candidate?.name || `Lead (${candidatePhone})`);
+
+        // State mapping
+        let state: "initiated" | "ringing" | "answered" | "completed" | "failed" = "completed";
+        const rawStatus = (log.status || "").toLowerCase();
+        if (rawStatus === "answered" || rawStatus === "completed" || rawStatus === "ended") {
+          state = "completed";
+        } else if (rawStatus === "user-not-answered" || rawStatus === "user-busy" || rawStatus === "failed") {
+          state = "failed";
+        } else if (rawStatus === "ringing") {
+          state = "ringing";
+        } else if (rawStatus === "initiated") {
+          state = "initiated";
+        }
+
+        // Duration in seconds (FreJun provides call_duration in minutes: 0.48 * 60 = 29s)
+        const durationSeconds = log.call_duration !== undefined && log.call_duration !== null
+          ? Math.round(Number(log.call_duration) * 60)
+          : undefined;
+
+        const createdAt = log.call_start_time
+          ? (String(log.call_start_time).endsWith("Z") ? log.call_start_time : `${log.call_start_time}Z`)
+          : new Date().toISOString();
+
+        const endedAt = log.call_end_time
+          ? (String(log.call_end_time).endsWith("Z") ? log.call_end_time : `${log.call_end_time}Z`)
+          : undefined;
+
+        const existing = await this.callRepository.findById(callId);
+        if (!existing) {
+          await this.callRepository.create({
+            callId,
+            provider: "frejun",
+            fromNumber,
+            toNumber,
+            state,
+            record: !!log.recording_url,
+            createdAt,
+            answeredAt: createdAt,
+            endedAt,
+            durationSeconds,
+            recordingUrl: log.recording_url || undefined,
+            reason: log.call_reason || log.status,
+            metadata: {
+              callDirection: isIncoming ? "inbound" : "outbound",
+              source: "frejun_sync",
+              frejunId: log.id,
+              virtualNumber: log.virtual_number,
+              recruiter: log.recruiter,
+              sharedLink: log.link,
+              callerName,
+              receiverName,
+              candidate: candidate
+                ? { id: candidate.id, name: candidate.name, phone: candidate.phone, company: candidate.company }
+                : undefined,
+              creator: creator
+                ? { id: creator.id, name: creator.name, phone: creator.phone, email: creator.email }
+                : undefined,
+              note: isIncoming
+                ? `Inbound Call: ${callerName} (${fromNumber}) ➔ ${receiverName} (${toNumber})`
+                : `Outbound Call: ${callerName} (${fromNumber}) ➔ ${receiverName} (${toNumber})`,
+            },
+          });
+
+          // Save event so Webhook / Event feed is also updated!
+          await this.callRepository.saveEvent({
+            eventId: `evt_sync_${log.id}_${Date.now()}`,
+            eventType: `call.${state}`,
+            callId,
+            provider: "frejun",
+            occurredAt: createdAt,
+            data: {
+              status: log.status,
+              duration_seconds: durationSeconds,
+              recording_url: log.recording_url,
+              direction: isIncoming ? "inbound" : "outbound",
+              from: fromNumber,
+              to: toNumber,
+              source: "frejun_sync",
+            },
+          });
+        } else {
+          // Update existing with duration and recordingUrl if missing
+          await this.callRepository.update(callId, {
+            state: existing.state === "completed" ? "completed" : state,
+            endedAt: endedAt || existing.endedAt,
+            durationSeconds: durationSeconds !== undefined ? durationSeconds : existing.durationSeconds,
+            recordingUrl: log.recording_url || existing.recordingUrl,
+            metadata: {
+              ...(existing.metadata || {}),
+              frejunId: log.id,
+              sharedLink: log.link || (existing.metadata as any)?.sharedLink,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      this.logger.error("Error during syncCallsInternal", err);
+    }
+
+    return this.callRepository.list(50);
+  };
+
+  /**
+   * POST /api/calls/sync or GET /api/calls/sync
+   * Explicitly triggers synchronization from FreJun Integrations API
+   */
+  public syncCalls = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const calls = await this.syncCallsInternal();
+      res.status(200).json({
+        success: true,
+        message: `Successfully synchronized ${calls.length} calls from FreJun`,
+        data: calls,
+      } as ApiResponse);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * GET /api/calls
-   * Lists recent call sessions
+   * Lists recent call sessions (automatically syncs from FreJun)
    */
   public listCalls = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const limit = parseInt(req.query.limit as string, 10) || 50;
+      await this.syncCallsInternal();
       const calls = await this.callRepository.list(limit);
 
       res.status(200).json({

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || "3001"}`;
 const WEBHOOK_SECRET = process.env.FREJUN_WEBHOOK_SECRET || "test_webhook_secret";
 
 async function sendWebhook(event: Record<string, unknown>) {
@@ -106,10 +106,32 @@ async function simulateCallLifecycle() {
       duration_seconds: 45,
       reason: "normal",
       ended_by: "callee",
+      recording_url: "https://actions.google.com/sounds/v1/telephones/phone_calling.ogg",
     },
   });
 
-  console.log("\n🎉 Simulation complete! Check the UI dashboard to see the updated call status and event feed.\n");
+  // Delay 1 second
+  await new Promise((r) => setTimeout(r, 1000));
+
+  // 4. recording.completed
+  await sendWebhook({
+    id: `evt_rec_${Date.now()}`,
+    type: "recording.completed",
+    api_version: "2026-06-01",
+    occurred_at: new Date().toISOString(),
+    account_id: "acc_demo_hashtagg",
+    voice_app_id: "va_demo_01",
+    sip_trunk_id: null,
+    call_id: callId,
+    leg_id: `cl_prim_${Date.now()}`,
+    data: {
+      call_id: callId,
+      recording_url: "https://actions.google.com/sounds/v1/telephones/phone_calling.ogg",
+      duration_seconds: 45,
+    },
+  });
+
+  console.log("\n🎉 Simulation complete! Check the UI dashboard to see the updated call status, event feed, and recording player.\n");
 }
 
 simulateCallLifecycle();

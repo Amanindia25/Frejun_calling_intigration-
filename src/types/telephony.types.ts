@@ -40,6 +40,7 @@ export interface CallSessionDto {
   durationSeconds?: number;
   reason?: string | null;
   flowAction?: string;
+  recordingUrl?: string | null;
   metadata?: Record<string, unknown>;
 }
 

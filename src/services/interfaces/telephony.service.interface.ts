@@ -36,4 +36,9 @@ export interface ITelephonyService {
    * Parses an incoming webhook payload into a normalized telephony lifecycle event.
    */
   parseWebhookEvent(body: unknown): TelephonyEventDto;
+
+  /**
+   * Fetches call logs directly from provider API for syncing inbound/outbound calls.
+   */
+  fetchCallLogs?(): Promise<any[]>;
 }

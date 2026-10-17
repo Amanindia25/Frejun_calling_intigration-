@@ -8,7 +8,9 @@
     "build": "tsc && node -e \"const fs=require('fs'); fs.cpSync('src/public', 'dist/public', { recursive: true });\"",
     "start": "node dist/server.js",
     "test:api": "tsx scripts/test-api.ts",
-    "test:webhook": "tsx scripts/simulate-webhook.ts"
+    "test:webhook": "tsx scripts/simulate-webhook.ts",
+    "test:inbound": "tsx scripts/simulate-inbound-call.ts",
+    "register:webhooks": "tsx scripts/register-frejun-webhooks.ts"
   },
   "keywords": [
     "frejun",

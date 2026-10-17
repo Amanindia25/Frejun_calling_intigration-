@@ -86,26 +86,104 @@ export class InMemoryCallRepository implements ICallRepository {
 
     if (existing) {
       const updates: Partial<CallSessionDto> = {};
+      const eventData = (event.data || {}) as Record<string, unknown>;
+
+      // 1. Lifecycle Events (call.status, call.initiated, call.answered, call.completed, call.failed)
       if (event.eventType === "call.initiated") {
         updates.state = "initiated";
       } else if (event.eventType === "call.answered") {
         updates.state = "answered";
-        updates.answeredAt = (event.data.answered_at as string) || event.occurredAt;
+        updates.answeredAt = (eventData.answered_at as string) || event.occurredAt;
       } else if (event.eventType === "call.completed") {
         updates.state = "completed";
-        updates.endedAt = (event.data.ended_at as string) || event.occurredAt;
-        if (typeof event.data.duration_seconds === "number") {
-          updates.durationSeconds = event.data.duration_seconds;
+        updates.endedAt = (eventData.ended_at as string) || event.occurredAt;
+        if (typeof eventData.duration_seconds === "number") {
+          updates.durationSeconds = eventData.duration_seconds;
+        } else if (typeof eventData.duration === "number") {
+          updates.durationSeconds = eventData.duration;
         }
-        if (typeof event.data.reason === "string") {
-          updates.reason = event.data.reason;
+        if (typeof eventData.reason === "string") {
+          updates.reason = eventData.reason;
+        }
+        const recUrl =
+          (eventData.recording_url as string) ||
+          (eventData.media_url as string) ||
+          (eventData.recording as string) ||
+          (eventData.url as string);
+        if (recUrl) {
+          updates.recordingUrl = recUrl;
         }
       } else if (event.eventType === "call.failed") {
         updates.state = "failed";
-        updates.endedAt = (event.data.ended_at as string) || event.occurredAt;
-        if (typeof event.data.reason === "string") {
-          updates.reason = event.data.reason;
+        updates.endedAt = (eventData.ended_at as string) || event.occurredAt;
+        if (typeof eventData.reason === "string") {
+          updates.reason = eventData.reason;
         }
+      } else if (event.eventType === "call.status") {
+        // FreJun Knowledge Base call.status generic event
+        const rawStatus = (
+          (eventData.status as string) ||
+          (eventData.call_status as string) ||
+          ""
+        ).toLowerCase();
+
+        if (rawStatus === "answered" || rawStatus === "in_progress") {
+          updates.state = "answered";
+          updates.answeredAt = (eventData.answered_at as string) || (eventData.answer_time as string) || event.occurredAt;
+        } else if (rawStatus === "completed" || rawStatus === "ended" || rawStatus === "success") {
+          updates.state = "completed";
+          updates.endedAt = (eventData.ended_at as string) || (eventData.hangup_time as string) || event.occurredAt;
+          if (typeof eventData.duration === "number") updates.durationSeconds = eventData.duration;
+          if (typeof eventData.duration_seconds === "number") updates.durationSeconds = eventData.duration_seconds;
+        } else if (rawStatus === "failed" || rawStatus === "missed" || rawStatus === "busy" || rawStatus === "no_answer") {
+          updates.state = "failed";
+          updates.reason = rawStatus;
+        } else if (rawStatus === "initiated" || rawStatus === "ringing") {
+          updates.state = rawStatus as any;
+        }
+      }
+
+      // 2. Recording Events (call.recording or recording.completed)
+      if (event.eventType === "recording.completed" || event.eventType === "call.recording") {
+        const recUrl =
+          (eventData.recording_url as string) ||
+          (eventData.media_url as string) ||
+          (eventData.recording as string) ||
+          (eventData.url as string);
+        if (recUrl) {
+          updates.recordingUrl = recUrl;
+        }
+      }
+
+      // 3. AI Insights (call.insights)
+      if (event.eventType === "call.insights") {
+        const insights = eventData.insights || eventData.summary || eventData;
+        updates.metadata = {
+          ...(existing.metadata || {}),
+          insights,
+        };
+      }
+
+      // 4. Property Change Events (call.propertyChange.*)
+      if (event.eventType === "call.propertyChange.notes") {
+        const notes = (eventData.notes as string) || (eventData.value as string);
+        updates.metadata = {
+          ...(existing.metadata || {}),
+          crmNotes: notes,
+        };
+      } else if (event.eventType === "call.propertyChange.call_reason") {
+        const callReason = (eventData.call_reason as string) || (eventData.reason as string) || (eventData.value as string);
+        updates.reason = callReason;
+        updates.metadata = {
+          ...(existing.metadata || {}),
+          callReason,
+        };
+      } else if (event.eventType === "call.propertyChange.call_outcome") {
+        const outcome = (eventData.call_outcome as string) || (eventData.outcome as string) || (eventData.value as string);
+        updates.metadata = {
+          ...(existing.metadata || {}),
+          callOutcome: outcome,
+        };
       }
 
       await this.update(event.callId, updates);

@@ -6,9 +6,11 @@ export function createWebhookRoutes(webhookController: WebhookController): Route
 
   // FreJun Call Flow instruction callback
   router.post("/flow", webhookController.handleCallFlow);
+  router.get("/flow", webhookController.handleCallFlow);
 
   // FreJun Call Status Webhook callback (HMAC-verified)
   router.post("/status", webhookController.handleStatusWebhook);
+  router.post("/webhook", webhookController.handleStatusWebhook);
 
   return router;
 }
