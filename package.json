@@ -10,6 +10,7 @@
     "test:api": "tsx scripts/test-api.ts",
     "test:webhook": "tsx scripts/simulate-webhook.ts",
     "test:inbound": "tsx scripts/simulate-inbound-call.ts",
+    "test:dialer": "tsx scripts/simulate-dialer-call.ts",
     "register:webhooks": "tsx scripts/register-frejun-webhooks.ts"
   },
   "keywords": [

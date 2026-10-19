@@ -79,10 +79,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Agents: Aman, Ritu
   // Leads: Aman Lead, Ananya
   const AGENT_CANDIDATE_PAIRS = {
-    creator_aman: "cand_ayush",
+    creator_aman: "cand_aman_lead",
     creator_ritu: "cand_ananya",
     // reverse:
-    cand_ayush: "creator_aman",
+    cand_aman_lead: "creator_aman",
     cand_ananya: "creator_ritu",
   };
 
@@ -574,12 +574,12 @@ document.addEventListener("DOMContentLoaded", () => {
         let assignedCreatorId = "creator_aman";
         let buttonsHtml = "";
 
-        if (c.id === "cand_ayush") {
+        if (c.id === "cand_aman_lead") {
           assignedAgentName = "Aman";
           assignedAgentPhone = "+91 83768 22509";
           assignedCreatorId = "creator_aman";
           buttonsHtml = `
-            <button type="button" class="btn-dial-sm" onclick="window.dialPair('outbound', 'creator_aman', 'cand_ayush', this)" title="Aman calls Aman Lead (Outbound)">
+            <button type="button" class="btn-dial-sm" onclick="window.dialPair('outbound', 'creator_aman', 'cand_aman_lead', this)" title="Aman calls Aman Lead (Outbound)">
               📞 Call Aman Lead (Aman ➔ Aman Lead)
             </button>
           `;
@@ -635,8 +635,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!cand) return;
 
     // Strict Pairing Override: Aman Lead always called by Aman, Ananya always by Ritu
-    if (candId === "cand_ayush") {
-      return window.dialPair("outbound", "creator_aman", "cand_ayush", btnEl);
+    if (candId === "cand_aman_lead") {
+      return window.dialPair("outbound", "creator_aman", "cand_aman_lead", btnEl);
     } else if (candId === "cand_ananya") {
       return window.dialPair("outbound", "creator_ritu", "cand_ananya", btnEl);
     }
@@ -656,7 +656,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Direct Assigned Pair Dialing (Aman <-> Aman Lead, Ritu <-> Ananya)
   window.dialPair = async (direction, creatorId, candidateId, btnEl = null) => {
     // ENFORCE STRICT PAIRING INVARIANT:
-    if (creatorId === "creator_aman" && candidateId !== "cand_ayush") {
+    if (creatorId === "creator_aman" && candidateId !== "cand_aman_lead") {
       showToast("⛔ PROHIBITED: Aman cannot call Ananya. Aman is strictly paired with Aman Lead.", "error");
       return;
     }
@@ -737,7 +737,7 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast("🚀 Initiating Outbound calls for Aman ➔ Aman Lead, Ritu ➔ Ananya...", "info");
 
     const calls = [
-      window.dialPair("outbound", "creator_aman", "cand_ayush"),
+      window.dialPair("outbound", "creator_aman", "cand_aman_lead"),
       window.dialPair("outbound", "creator_ritu", "cand_ananya"),
     ];
 
@@ -888,7 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // STRICT CLIENT-SIDE PAIRING VALIDATION:
-    // Pair 1: Aman (+918376822509) ⇄ Aman Lead (+918935926120)
+    // Pair 1: Aman (+918376822509) ⇄ Aman Lead (+918708050914)
     // Pair 2: Ritu (+917903234057) ⇄ Ananya (+918303831398)
     const cleanAgentPhone = (payload.creatorNumber || (activeCreator?.phone || "")).replace(/\D/g, "").slice(-10);
     const cleanDestPhone = (payload.toNumber || "").replace(/\D/g, "").slice(-10);
@@ -904,12 +904,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Ritu will NEVER call Aman Lead
     if (
-      (cleanAgentPhone === "7903234057" && cleanDestPhone === "8935926120") ||
-      (cleanAgentPhone === "8935926120" && cleanDestPhone === "7903234057")
+      (cleanAgentPhone === "7903234057" && cleanDestPhone === "8708050914") ||
+      (cleanAgentPhone === "8708050914" && cleanDestPhone === "7903234057")
     ) {
       showToast("⛔ STRICT PAIRING RULE: Ritu will NEVER call Aman Lead! Ritu is paired exclusively with Ananya.", "error");
       return;
     }
+
 
     if (inFlightDials.has(callKey)) {
       showToast(`Dial already connecting for this destination. Please wait...`, "warning");
@@ -998,7 +999,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Update Station Cards and Header status indicators in real time
   function updateStationCardsState() {
     const stations = [
-      { id: "aman", creatorId: "creator_aman", candId: "cand_ayush", phone: "8376822509", candPhone: "8935926120", name: "Aman", candName: "Aman Lead" },
+      { id: "aman", creatorId: "creator_aman", candId: "cand_aman_lead", phone: "8376822509", candPhone: "8708050914", name: "Aman", candName: "Aman Lead" },
       { id: "ritu", creatorId: "creator_ritu", candId: "cand_ananya", phone: "7903234057", candPhone: "8303831398", name: "Ritu", candName: "Ananya" },
     ];
 
@@ -1090,10 +1091,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cleanAgent === "8376822509" && cleanTarget === "8303831398") {
       isViolation = true;
       violationMsg = "⛔ Blocked: Aman will NEVER call Ananya (Paired with Aman Lead)";
-    } else if (cleanAgent === "7903234057" && cleanTarget === "8935926120") {
+    } else if (cleanAgent === "7903234057" && cleanTarget === "8708050914") {
       isViolation = true;
       violationMsg = "⛔ Blocked: Ritu will NEVER call Aman Lead (Paired with Ananya)";
     }
+
 
     if (isViolation) {
       callNowBtn.disabled = true;

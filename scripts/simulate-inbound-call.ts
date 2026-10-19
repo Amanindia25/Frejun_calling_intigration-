@@ -37,7 +37,7 @@ async function testInboundCallRouting() {
   const testCases = [
     {
       name: "Case 1: Aman Lead Calling",
-      callerNumber: "+918935926120",
+      callerNumber: "+918708050914",
       expectedAgent: "Aman",
       expectedTarget: "+918376822509",
     },

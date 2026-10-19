@@ -106,7 +106,8 @@ export class App {
     // Multi-Creator & Multi-Candidate CRM API
     this.app.use("/api/crm", createCrmRoutes(crmController));
 
-    // FreJun Call Flow and Webhook endpoints under /api/teler
+    // FreJun Dialer and Teler Webhook endpoints
+    this.app.use("/api/dialer", createWebhookRoutes(webhookController));
     this.app.use("/api/teler", createWebhookRoutes(webhookController));
 
     // Aliases for quickstart default paths (/flow, /status, /webhook)

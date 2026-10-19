@@ -102,6 +102,14 @@ export interface FreJunInitiateCallApiResponse {
  * FreJun Webhook Event Types
  */
 export type FreJunWebhookEventType =
+  | "call.status"
+  | "call.recording"
+  | "call.insights"
+  | "call.summary"
+  | "call.propertyChange.notes"
+  | "call.propertyChange.call_reason"
+  | "call.propertyChange.call_outcome"
+  | "call.propertyChange.metadata"
   | "call.initiated"
   | "call.answered"
   | "call.completed"
@@ -112,14 +120,44 @@ export type FreJunWebhookEventType =
   | "recording.failed";
 
 /**
+ * FreJun Dialer Unified `call.status` Webhook Payload
+ * Reference: https://frejun.com/docs/dialer/webhooks/supported-events/
+ */
+export interface FreJunDialerCallStatusPayload {
+  event: "call.status" | string;
+  call_id: string;
+  start_time?: string;
+  call_creator?: string; // agent email
+  candidate_number?: string; // customer lead phone
+  virtual_number: string; // FreJun DID e.g. +918035742316
+  call_status:
+    | "Inbound call initiated"
+    | "Outbound call initiated"
+    | "Call answered"
+    | "Call completed"
+    | "Call busy"
+    | "Call missed"
+    | "Call failed"
+    | string;
+  call_type?: "inbound" | "outbound" | string;
+  org_identifier?: string;
+  candidate_name?: string;
+  end_time?: string;
+  duration?: number; // milliseconds per Dialer docs (or seconds in some endpoints)
+  answer_time?: string;
+  recording_url?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * Call Event Data under `data` field of Webhook Envelope (2026-06-01)
  */
 export interface FreJunCallEventData {
   call_id: string;
-  from: string;
-  to: string;
-  direction: "inbound" | "outbound";
-  start_time: string;
+  from?: string;
+  to?: string;
+  direction?: "inbound" | "outbound";
+  start_time?: string;
   answered_at?: string | null;
   ended_at?: string | null;
   duration_seconds?: number;
@@ -139,6 +177,17 @@ export interface FreJunCallEventData {
     code?: number;
     description?: string;
   };
+  // Dialer fields embedded in data
+  call_status?: string;
+  virtual_number?: string;
+  candidate_number?: string;
+  customer_number?: string;
+  caller_number?: string;
+  call_type?: string;
+  answer_time?: string;
+  end_time?: string;
+  duration?: number;
+  recording_url?: string;
 }
 
 /**
@@ -157,3 +206,4 @@ export interface FreJunWebhookEnvelope<T = FreJunCallEventData> {
   data: T;
   previous_attributes?: Record<string, unknown> | null;
 }
+

@@ -119,27 +119,93 @@ export class InMemoryCallRepository implements ICallRepository {
         if (typeof eventData.reason === "string") {
           updates.reason = eventData.reason;
         }
-      } else if (event.eventType === "call.status") {
-        // FreJun Knowledge Base call.status generic event
+      } else if (event.eventType === "call.status" || event.eventType === "call_status") {
+        // FreJun Dialer call.status unified lifecycle event
+        // Values: "Inbound call initiated", "Outbound call initiated", "Call answered", "Call completed", "Call busy", etc.
         const rawStatus = (
-          (eventData.status as string) ||
           (eventData.call_status as string) ||
+          (eventData.status as string) ||
           ""
-        ).toLowerCase();
+        ).toLowerCase().trim();
 
-        if (rawStatus === "answered" || rawStatus === "in_progress") {
+        if (
+          rawStatus.includes("answered") ||
+          rawStatus.includes("in_progress") ||
+          rawStatus === "picked" ||
+          rawStatus === "call answered"
+        ) {
           updates.state = "answered";
-          updates.answeredAt = (eventData.answered_at as string) || (eventData.answer_time as string) || event.occurredAt;
-        } else if (rawStatus === "completed" || rawStatus === "ended" || rawStatus === "success") {
+          updates.answeredAt =
+            (eventData.answer_time as string) ||
+            (eventData.answered_at as string) ||
+            event.occurredAt;
+        } else if (
+          rawStatus.includes("completed") ||
+          rawStatus.includes("ended") ||
+          rawStatus === "success" ||
+          rawStatus === "call completed"
+        ) {
           updates.state = "completed";
-          updates.endedAt = (eventData.ended_at as string) || (eventData.hangup_time as string) || event.occurredAt;
-          if (typeof eventData.duration === "number") updates.durationSeconds = eventData.duration;
-          if (typeof eventData.duration_seconds === "number") updates.durationSeconds = eventData.duration_seconds;
-        } else if (rawStatus === "failed" || rawStatus === "missed" || rawStatus === "busy" || rawStatus === "no_answer") {
+          updates.endedAt =
+            (eventData.end_time as string) ||
+            (eventData.ended_at as string) ||
+            (eventData.hangup_time as string) ||
+            event.occurredAt;
+
+          // FreJun Dialer sends duration in milliseconds (or seconds in some endpoints)
+          const rawDuration =
+            typeof eventData.duration === "number"
+              ? eventData.duration
+              : typeof eventData.duration_seconds === "number"
+              ? eventData.duration_seconds
+              : typeof eventData.duration === "string"
+              ? parseInt(eventData.duration, 10)
+              : undefined;
+
+          if (typeof rawDuration === "number" && !isNaN(rawDuration)) {
+            // If > 1000, it's milliseconds from Dialer API -> convert to seconds
+            updates.durationSeconds = rawDuration > 1000 ? Math.round(rawDuration / 1000) : rawDuration;
+          }
+        } else if (
+          rawStatus.includes("failed") ||
+          rawStatus.includes("missed") ||
+          rawStatus.includes("busy") ||
+          rawStatus.includes("no_answer") ||
+          rawStatus.includes("rejected") ||
+          rawStatus.includes("canceled")
+        ) {
           updates.state = "failed";
-          updates.reason = rawStatus;
-        } else if (rawStatus === "initiated" || rawStatus === "ringing") {
-          updates.state = rawStatus as any;
+          updates.reason = (eventData.reason as string) || rawStatus;
+          updates.endedAt =
+            (eventData.end_time as string) ||
+            (eventData.ended_at as string) ||
+            event.occurredAt;
+        } else if (
+          rawStatus.includes("initiated") ||
+          rawStatus.includes("ringing")
+        ) {
+          updates.state = rawStatus.includes("ringing") ? "ringing" : "initiated";
+        }
+
+        // Capture recording if included in call.status payload
+        const recUrl =
+          (eventData.recording_url as string) ||
+          (eventData.media_url as string) ||
+          (eventData.recording as string) ||
+          (eventData.url as string);
+        if (recUrl) {
+          updates.recordingUrl = recUrl;
+        }
+
+        // Store candidate & creator metadata if provided
+        if (eventData.candidate_name || eventData.call_creator || eventData.virtual_number) {
+          updates.metadata = {
+            ...(existing.metadata || {}),
+            candidateName: (eventData.candidate_name as string) || existing.metadata?.candidateName,
+            creatorEmail: (eventData.call_creator as string) || existing.metadata?.creatorEmail,
+            virtualNumber: (eventData.virtual_number as string) || existing.metadata?.virtualNumber,
+            dialerCallStatus: (eventData.call_status as string) || rawStatus,
+          };
         }
       }
 

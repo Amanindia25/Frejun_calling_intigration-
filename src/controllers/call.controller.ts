@@ -106,7 +106,7 @@ export class CallController {
       }
 
       // STRICT CRM PAIRING ENFORCEMENT:
-      // Pair 1: Aman (+918376822509) ⇄ Aman Lead (+918935926120)
+      // Pair 1: Aman (+918376822509) ⇄ Aman Lead (+918708050914)
       // Pair 2: Ritu (+917903234057) ⇄ Ananya (+918303831398)
       const cleanCreator = (creatorNumber || "").replace(/\D/g, "").slice(-10);
       const cleanTarget = (targetNumber || "").replace(/\D/g, "").slice(-10);
@@ -124,7 +124,7 @@ export class CallController {
           success: false,
           error: {
             code: "STRICT_PAIRING_VIOLATION",
-            message: "Strict Pairing Rule: Aman (+91 8376822509) is paired exclusively with Aman Lead (+91 8935926120) and can NEVER call Ananya.",
+            message: "Strict Pairing Rule: Aman (+91 8376822509) is paired exclusively with Aman Lead (+91 8708050914) and can NEVER call Ananya.",
           },
         });
         return;
@@ -132,8 +132,8 @@ export class CallController {
 
       // Ritu can NEVER call Aman Lead (and Aman Lead can never call Ritu)
       if (
-        (cleanCreator === "7903234057" && cleanTarget === "8935926120") ||
-        (cleanCreator === "8935926120" && cleanTarget === "7903234057")
+        (cleanCreator === "7903234057" && cleanTarget === "8708050914") ||
+        (cleanCreator === "8708050914" && cleanTarget === "7903234057")
       ) {
         this.logger.warn("Strict pairing violation blocked: Ritu cannot call Aman Lead", {
           creatorNumber,
@@ -148,6 +148,7 @@ export class CallController {
         });
         return;
       }
+
 
       this.logger.info("Received outbound call request", {
         toNumber: targetNumber,

@@ -10,6 +10,8 @@ export interface IAppConfig {
   publicBaseUrl: string;
   frejun: {
     apiKey: string;
+    clientId?: string;
+    clientSecret?: string;
     callerNumber: string;
     webhookSecret: string;
     flowAction: CallFlowActionType;
@@ -40,6 +42,8 @@ export class AppConfig {
     const publicBaseUrl = (process.env.PUBLIC_BASE_URL || `http://localhost:${port}`).replace(/\/$/, "");
 
     const apiKey = process.env.FREJUN_API_KEY || "";
+    const clientId = process.env.FREJUN_CLIENT_ID || "";
+    const clientSecret = process.env.FREJUN_CLIENT_SECRET || "";
     const callerNumber = process.env.FREJUN_CALLER_NUMBER || "";
     const webhookSecret = process.env.FREJUN_WEBHOOK_SECRET || "";
 
@@ -74,6 +78,8 @@ export class AppConfig {
       publicBaseUrl,
       frejun: {
         apiKey,
+        clientId,
+        clientSecret,
         callerNumber,
         webhookSecret,
         flowAction,

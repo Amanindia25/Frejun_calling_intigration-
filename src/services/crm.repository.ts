@@ -61,9 +61,9 @@ export class InMemoryCrmRepository implements ICrmRepository {
     // 2. Leads / Customers (Candidates / Receivers) - Exactly 2 (Aman Lead, Ananya)
     const initialCandidates: ICandidate[] = [
       {
-        id: "cand_ayush",
+        id: "cand_aman_lead",
         name: "Aman Lead",
-        phone: "+918935926120",
+        phone: "+918708050914",
         email: "amanlead@customer.com",
         company: "Lead (Paired with Aman)",
         tags: ["Paired with Aman", "Priority Lead"],

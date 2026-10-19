@@ -54,8 +54,8 @@ export class WebhookController {
         candidate = await this.crmRepository.getCandidateByPhone(fromNumber);
 
         // Strict Lead-to-Agent Routing:
-        // Case 1: Aman Lead (+918935926120) strictly pairs with Aman (+918376822509)
-        if (cleanFrom === "8935926120" || candidate?.id === "cand_ayush") {
+        // Case 1: Aman Lead (+918708050914) strictly pairs with Aman (+918376822509)
+        if (cleanFrom === "8708050914" || candidate?.id === "cand_aman_lead") {
           const creators = await this.crmRepository.getCreators();
           creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
         }
@@ -220,9 +220,35 @@ export class WebhookController {
     if (event.callId) {
       const existing = await this.callRepository.findById(event.callId);
       if (!existing) {
-        const from = (event.data?.from as string) || (event.data?.from_number as string) || "";
-        const to = (event.data?.to as string) || (event.data?.to_number as string) || "";
-        const direction = (event.data?.direction as string) || "inbound";
+        const from =
+          (event.data?.candidate_number as string) ||
+          (event.data?.customer_number as string) ||
+          (event.data?.caller_number as string) ||
+          (event.data?.from as string) ||
+          (event.data?.from_number as string) ||
+          "";
+        const to =
+          (event.data?.virtual_number as string) ||
+          (event.data?.to as string) ||
+          (event.data?.to_number as string) ||
+          "";
+
+        let direction =
+          (event.data?.direction as string) ||
+          (event.data?.call_type as string) ||
+          "inbound";
+
+        const rawStatus = (
+          (event.data?.call_status as string) ||
+          (event.data?.status as string) ||
+          ""
+        ).toLowerCase().trim();
+
+        if (rawStatus.includes("inbound")) {
+          direction = "inbound";
+        } else if (rawStatus.includes("outbound")) {
+          direction = "outbound";
+        }
 
         let candidate = null;
         let creator = null;
@@ -231,7 +257,7 @@ export class WebhookController {
             candidate = await this.crmRepository.getCandidateByPhone(from);
             const cleanFrom = from.replace(/\D/g, "").slice(-10);
 
-            if (cleanFrom === "8935926120" || candidate?.id === "cand_ayush") {
+            if (cleanFrom === "8708050914" || candidate?.id === "cand_aman_lead") {
               const creators = await this.crmRepository.getCreators();
               creator = creators.find((c) => c.id === "creator_aman" || c.phone.endsWith("8376822509")) || null;
             } else if (cleanFrom === "8303831398" || candidate?.id === "cand_ananya") {
@@ -255,19 +281,62 @@ export class WebhookController {
 
         const defaultAgent = (await this.crmRepository?.getDefaultCreator()) || (await this.crmRepository?.getCreators())?.[0];
         const assignedAgent = creator || defaultAgent;
-        const callerName = direction === "inbound" ? (candidate?.name || `Lead (${from})`) : (assignedAgent?.name || "Agent");
-        const receiverName = direction === "inbound" ? (assignedAgent?.name || "Agent") : (candidate?.name || `Customer (${to})`);
+        const candidateDisplayName = (event.data?.candidate_name as string) || candidate?.name;
+        const callerName = direction === "inbound" ? (candidateDisplayName || `Lead (${from})`) : (assignedAgent?.name || "Agent");
+        const receiverName = direction === "inbound" ? (assignedAgent?.name || "Agent") : (candidateDisplayName || `Customer (${to})`);
         const dialTarget = assignedAgent?.phone || process.env.FREJUN_DIAL_BRIDGE_TARGET || "+918376822509";
 
         let initialState: "initiated" | "ringing" | "answered" | "completed" | "failed" = "initiated";
-        const rawStatus = ((event.data?.status as string) || (event.data?.call_status as string) || "").toLowerCase();
-        if (event.eventType === "call.completed" || rawStatus === "completed" || rawStatus === "ended") {
+        if (
+          event.eventType === "call.completed" ||
+          rawStatus.includes("completed") ||
+          rawStatus.includes("ended") ||
+          rawStatus === "success"
+        ) {
           initialState = "completed";
-        } else if (event.eventType === "call.answered" || rawStatus === "answered") {
+        } else if (
+          event.eventType === "call.answered" ||
+          rawStatus.includes("answered") ||
+          rawStatus.includes("in_progress") ||
+          rawStatus === "picked"
+        ) {
           initialState = "answered";
-        } else if (event.eventType === "call.failed" || rawStatus === "failed") {
+        } else if (
+          event.eventType === "call.failed" ||
+          rawStatus.includes("failed") ||
+          rawStatus.includes("missed") ||
+          rawStatus.includes("busy") ||
+          rawStatus.includes("no_answer") ||
+          rawStatus.includes("rejected") ||
+          rawStatus.includes("canceled")
+        ) {
           initialState = "failed";
+        } else if (rawStatus.includes("ringing")) {
+          initialState = "ringing";
         }
+
+        const rawDuration =
+          typeof event.data?.duration === "number"
+            ? event.data.duration
+            : typeof event.data?.duration_seconds === "number"
+            ? event.data.duration_seconds
+            : undefined;
+        const durationSeconds =
+          typeof rawDuration === "number"
+            ? rawDuration > 1000
+              ? Math.round(rawDuration / 1000)
+              : rawDuration
+            : undefined;
+
+        const answeredAt =
+          (event.data?.answer_time as string) ||
+          (event.data?.answered_at as string) ||
+          (initialState === "answered" ? event.occurredAt : undefined);
+
+        const endedAt =
+          (event.data?.end_time as string) ||
+          (event.data?.ended_at as string) ||
+          (initialState === "completed" ? event.occurredAt : undefined);
 
         await this.callRepository.create({
           callId: event.callId,
@@ -277,12 +346,13 @@ export class WebhookController {
           state: initialState,
           record: true,
           createdAt: event.occurredAt || new Date().toISOString(),
-          answeredAt: (event.data?.answered_at as string) || (initialState === "answered" ? event.occurredAt : undefined),
-          endedAt: (event.data?.ended_at as string) || (initialState === "completed" ? event.occurredAt : undefined),
-          durationSeconds: typeof event.data?.duration_seconds === "number" ? event.data.duration_seconds : undefined,
+          answeredAt,
+          endedAt,
+          durationSeconds,
           metadata: {
             callDirection: direction,
             source: "frejun_webhook",
+            dialerCallStatus: (event.data?.call_status as string) || rawStatus,
             candidate: candidate
               ? { id: candidate.id, name: candidate.name, phone: candidate.phone, company: candidate.company }
               : undefined,

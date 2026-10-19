@@ -20,8 +20,8 @@ function bootstrap() {
     logger.info(`🌐 Local Server:       http://localhost:${config.port}`);
     logger.info(`📱 Dialing UI:         http://localhost:${config.port}/`);
     logger.info(`📞 Outbound Calls API: POST http://localhost:${config.port}/api/calls`);
-    logger.info(`📡 Call Flow URL:     POST ${config.publicBaseUrl}/api/teler/flow`);
-    logger.info(`🔔 Status Webhook:     POST ${config.publicBaseUrl}/api/teler/status`);
+    logger.info(`🔔 FreJun Dialer Webhook: POST ${config.publicBaseUrl}/api/dialer/status`);
+    logger.info(`📡 Legacy Teler Webhook:   POST ${config.publicBaseUrl}/api/teler/status`);
     logger.info(`🛠️ Configured Action:  ${config.frejun.flowAction.toUpperCase()}`);
     if (config.frejun.flowAction === "dial") {
       logger.info(`🔗 Dial Bridge Target: ${config.frejun.dialBridgeTarget || "(not set)"}`);

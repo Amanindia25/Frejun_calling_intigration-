@@ -519,10 +519,10 @@ export class FreJunService implements ITelephonyService {
   }
 
   /**
-   * Parses webhook payload (handles both 2026-06-01 envelope and legacy flat body)
+   * Parses webhook payload (handles 2026-06-01 envelope, legacy format, and FreJun Dialer call.status)
    */
   public parseWebhookEvent(body: unknown): TelephonyEventDto {
-    const b = body as Record<string, unknown>;
+    const b = (body || {}) as Record<string, unknown>;
 
     // 2026-06-01 Webhook Envelope format
     if (b && typeof b.id === "string" && typeof b.type === "string") {
@@ -537,19 +537,36 @@ export class FreJunService implements ITelephonyService {
       };
     }
 
-    // Legacy (2025-08-01) flat format fallback
-    const legacyEvent = (b.event as string) || (b.type as string) || "unknown";
-    const legacyData = (b.data as Record<string, unknown>) || b;
-    const callId = (legacyData.call_id as string) || (b.call_id as string) || "";
-    const eventId = `evt_legacy_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    // FreJun Dialer / Unified webhook format (e.g. { event: "call.status", call_id, virtual_number, call_status, ... })
+    const legacyEvent = (b.event as string) || (b.type as string) || "call.status";
+    const nestedData = (b.data && typeof b.data === "object" ? b.data : {}) as Record<string, unknown>;
+    const mergedData = { ...b, ...nestedData };
+    const callId =
+      (mergedData.call_id as string) ||
+      (b.call_id as string) ||
+      (mergedData.id as string) ||
+      "";
+    const eventId =
+      (b.event_id as string) ||
+      (b.id as string) ||
+      (mergedData.event_id as string) ||
+      `evt_dialer_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const occurredAt =
+      (mergedData.end_time as string) ||
+      (mergedData.answer_time as string) ||
+      (mergedData.start_time as string) ||
+      (mergedData.timestamp as string) ||
+      (b.timestamp as string) ||
+      new Date().toISOString();
 
     return {
       eventId,
       eventType: legacyEvent,
       callId,
       provider: this.providerName,
-      occurredAt: (legacyData.start_time as string) || new Date().toISOString(),
-      data: legacyData,
+      occurredAt,
+      data: mergedData,
     };
   }
 
